@@ -1,7 +1,7 @@
 {
   "name": "@sapkalabs/react-native-app-updates",
   "version": "0.1.0",
-  "description": "A React Native Turbo Module for managing app updates",
+  "description": "A React Native TurboModule for checking versions and performing app updates",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -32,9 +32,11 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace react-native-app-updates-example",
-    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
+    "sa": "yarn workspace @sapkalabs/react-native-app-updates-example-app run android",
+    "si": "yarn workspace @sapkalabs/react-native-app-updates-example-app run ios",
+    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib .test-dist",
     "prepare": "bob build",
+    "test": "node ./scripts/run-tests.mjs",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\""
   },
@@ -81,7 +83,7 @@
   "workspaces": [
     "example"
   ],
-  "packageManager": "yarn@4.11.0",
+  "packageManager": "yarn@4.13.0",
   "react-native-builder-bob": {
     "source": "src",
     "output": "lib",

@@ -26,7 +26,6 @@ buildscript {
   }
 }
 
-
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 
@@ -64,4 +63,6 @@ android {
 
 dependencies {
   implementation "com.facebook.react:react-android"
+  implementation "com.google.android.play:app-update:2.1.0"
+  implementation "com.google.android.play:app-update-ktx:2.1.0"
 }
