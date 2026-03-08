@@ -1,5 +1,38 @@
-import AppUpdates from './NativeAppUpdates';
+export { createUpdateClient } from './createUpdateClient';
+export { sources } from './sources';
 
-export function multiply(a: number, b: number): number {
-  return AppUpdates.multiply(a, b);
-}
+export type {
+  AndroidPlatformConfig,
+  AndroidSourceConfig,
+  AppStoreSourceConfig,
+  CheckForUpdateOptions,
+  CheckMode,
+  CheckResult,
+  CustomSourceConfig,
+  CustomUpdateProvider,
+  CustomUpdateProviderContext,
+  CustomUpdateProviderResult,
+  FailedUpdateResult,
+  ILogger,
+  InvalidConfigurationReason,
+  InvalidConfigurationResult,
+  IOSPlatformConfig,
+  IOSSourceConfig,
+  PerformUpdateFailureReason,
+  PerformUpdateResult,
+  PlatformName,
+  PlayStoreFlow,
+  PlayStoreSourceConfig,
+  ProviderErrorReason,
+  ProviderErrorResult,
+  RedirectedUpdateResult,
+  SourceType,
+  StartedUpdateResult,
+  UnsupportedReason,
+  UnsupportedResult,
+  UpdateAvailableResult,
+  UpdateClient,
+  UpdateClientConfig,
+  UpdateMetadata,
+  UpToDateResult,
+} from './types';
