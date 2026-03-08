@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  pull_request_target:
+    types:
+      - closed
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    environment: release
+
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Determine release type
+        id: release-type
+        env:
+          PR_LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          RELEASE_TYPE=$(node -e "const { resolveReleaseType } = require('./scripts/release-utils.js'); const labels = JSON.parse(process.env.PR_LABELS_JSON || '[]'); process.stdout.write(resolveReleaseType(labels));")
+          echo "value=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
+
+      - name: Validate merged state before releasing
+        run: |
+          yarn lint
+          yarn typecheck
+          yarn test
+          yarn prepare
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump package version
+        id: version
+        run: |
+          npm version "${{ steps.release-type.outputs.value }}" --no-git-tag-version
+          NEXT_VERSION=$(node -p "require('./package.json').version")
+          echo "value=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump and tag release
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          git add package.json
+          git commit -m "chore(release): $NEXT_VERSION [skip ci]"
+          git tag "$NEXT_VERSION"
+          git push origin HEAD:main --follow-tags
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ steps.version.outputs.value }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          curl --fail-with-body --request POST \
+            --url "https://api.github.com/repos/$REPOSITORY/releases" \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data "$(node -e "process.stdout.write(JSON.stringify({ tag_name: process.env.NEXT_VERSION, name: process.env.NEXT_VERSION, target_commitish: 'main', generate_release_notes: true }))")"

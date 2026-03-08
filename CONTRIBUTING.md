@@ -88,6 +88,20 @@ The `package.json` file contains various scripts for common tasks:
 - `yarn example android`: run the example app on Android.
 - `yarn example ios`: run the example app on iOS.
 
+### Release workflow
+
+Merging a pull request into `main` now triggers an automated release flow. By
+default, merged pull requests publish a patch release.
+
+You can control the semantic version bump with one of these pull request
+labels:
+
+- `release:patch`
+- `release:minor`
+- `release:major`
+
+If multiple release labels are present, the highest bump wins.
+
 ### Sending a pull request
 
 > **Working on your first pull request?** You can learn how from this _free_ series: [How to Contribute to an Open Source Project on GitHub](https://app.egghead.io/playlists/how-to-contribute-to-an-open-source-project-on-github).
