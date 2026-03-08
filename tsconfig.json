@@ -2,7 +2,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
-      "react-native-app-updates": ["./src/index"]
+      "@sapkalabs/react-native-app-updates": ["./src/index"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,

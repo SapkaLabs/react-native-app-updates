@@ -1,5 +1,5 @@
 {
-  "name": "react-native-app-updates",
+  "name": "@sapkalabs/react-native-app-updates",
   "version": "0.1.0",
   "description": "A React Native Turbo Module for managing app updates",
   "main": "./lib/module/index.js",

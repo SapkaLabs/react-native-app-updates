@@ -1,4 +1,4 @@
-# react-native-app-updates
+# @sapkalabs/react-native-app-updates
 
 A React Native Turbo Module for managing app updates
 
@@ -6,7 +6,7 @@ A React Native Turbo Module for managing app updates
 
 
 ```sh
-npm install react-native-app-updates
+npm install @sapkalabs/react-native-app-updates
 ```
 
 
@@ -14,7 +14,7 @@ npm install react-native-app-updates
 
 
 ```js
-import { multiply } from 'react-native-app-updates';
+import { multiply } from '@sapkalabs/react-native-app-updates';
 
 // ...
 

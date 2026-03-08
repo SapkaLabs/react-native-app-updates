@@ -1,5 +1,5 @@
 import { Text, View, StyleSheet } from 'react-native';
-import { multiply } from 'react-native-app-updates';
+import { multiply } from '@sapkalabs/react-native-app-updates';
 
 const result = multiply(3, 7);
 
