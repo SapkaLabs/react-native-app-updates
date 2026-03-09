@@ -34,7 +34,26 @@ function resolveReleaseType(labels = []) {
   return releaseType;
 }
 
+function normalizeNonEmptyString(value) {
+  const normalizedValue = String(value ?? '').trim();
+
+  return normalizedValue ? normalizedValue : null;
+}
+
+function resolvePublishTag({
+  workflowDispatchTag,
+  releaseTag,
+  latestReleaseTag,
+} = {}) {
+  return (
+    normalizeNonEmptyString(workflowDispatchTag) ??
+    normalizeNonEmptyString(releaseTag) ??
+    normalizeNonEmptyString(latestReleaseTag)
+  );
+}
+
 module.exports = {
   getReleaseTypeFromLabel,
+  resolvePublishTag,
   resolveReleaseType,
 };
