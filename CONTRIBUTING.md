@@ -105,7 +105,9 @@ If multiple release labels are present, the highest bump wins.
 The npm publish step runs from the `Publish to npm` workflow after the release
 workflow completes. If you need to retry a publish, run `Publish to npm`
 manually from the Actions tab and provide a release tag, or leave the tag empty
-to publish the latest GitHub release.
+to publish the latest GitHub release. The `release` environment must also define
+an `NPM_TOKEN` secret that has permission to publish
+`@sapkalabs/react-native-app-updates`.
 
 ### Sending a pull request
 
