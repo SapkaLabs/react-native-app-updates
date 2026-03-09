@@ -4,9 +4,96 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish. Defaults to the latest GitHub release.
+        required: false
+        type: string
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
 
 jobs:
+  resolve-release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+
+    outputs:
+      should-publish: ${{ steps.resolve-tag.outputs.should-publish }}
+      tag: ${{ steps.resolve-tag.outputs.value }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Resolve release tag
+        id: resolve-tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "$EVENT_NAME" = 'workflow_run' ]; then
+            WORKFLOW_RUN_JOBS=$(curl --silent --show-error --fail \
+              --url "https://api.github.com/repos/$REPOSITORY/actions/runs/$WORKFLOW_RUN_ID/jobs" \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GITHUB_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28")
+
+            RELEASE_JOB_CONCLUSION=$(printf '%s' "$WORKFLOW_RUN_JOBS" | node -e "let data = ''; process.stdin.on('data', (chunk) => { data += chunk; }); process.stdin.on('end', () => { const jobs = JSON.parse(data || '{}').jobs || []; const releaseJob = jobs.find(({ name }) => name === 'release'); process.stdout.write(releaseJob?.conclusion || ''); });")
+
+            if [ "$RELEASE_JOB_CONCLUSION" != 'success' ]; then
+              echo "should-publish=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          echo "should-publish=true" >> "$GITHUB_OUTPUT"
+          LATEST_RELEASE_TAG=''
+
+          if [ -z "$WORKFLOW_DISPATCH_TAG" ] && [ -z "$RELEASE_TAG_NAME" ]; then
+            LATEST_RELEASE_RESPONSE=$(curl --silent --show-error --fail \
+              --url "https://api.github.com/repos/$REPOSITORY/releases/latest" \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GITHUB_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28")
+
+            LATEST_RELEASE_TAG=$(printf '%s' "$LATEST_RELEASE_RESPONSE" | node -e "let data = ''; process.stdin.on('data', (chunk) => { data += chunk; }); process.stdin.on('end', () => { process.stdout.write(JSON.parse(data || '{}').tag_name || ''); });")
+          fi
+
+          export LATEST_RELEASE_TAG
+          TAG_NAME=$(node <<'NODE'
+          const { resolvePublishTag } = require('./scripts/release-utils.js');
+
+          const tagName = resolvePublishTag({
+            workflowDispatchTag: process.env.WORKFLOW_DISPATCH_TAG,
+            releaseTag: process.env.RELEASE_TAG_NAME,
+            latestReleaseTag: process.env.LATEST_RELEASE_TAG,
+          });
+
+          if (!tagName) {
+            process.stderr.write('Unable to determine a release tag to publish.');
+            process.exit(1);
+          }
+
+          process.stdout.write(tagName);
+          NODE
+          )
+
+          echo "value=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: resolve-release
+    if: needs.resolve-release.outputs.should-publish == 'true'
     runs-on: ubuntu-latest
 
     permissions:
@@ -15,6 +102,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: refs/tags/${{ needs.resolve-release.outputs.tag }}
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -29,7 +118,10 @@ jobs:
         run: yarn prepare
 
   publish:
-    needs: test
+    needs:
+      - resolve-release
+      - test
+    if: needs.resolve-release.outputs.should-publish == 'true'
     runs-on: ubuntu-latest
     environment: release
 
@@ -41,7 +133,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: refs/tags/${{ github.event.release.tag_name }}
+          ref: refs/tags/${{ needs.resolve-release.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0

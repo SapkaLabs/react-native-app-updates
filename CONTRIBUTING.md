@@ -102,6 +102,11 @@ labels:
 
 If multiple release labels are present, the highest bump wins.
 
+The npm publish step runs from the `Publish to npm` workflow after the release
+workflow completes. If you need to retry a publish, run `Publish to npm`
+manually from the Actions tab and provide a release tag, or leave the tag empty
+to publish the latest GitHub release.
+
 ### Sending a pull request
 
 > **Working on your first pull request?** You can learn how from this _free_ series: [How to Contribute to an Open Source Project on GitHub](https://app.egghead.io/playlists/how-to-contribute-to-an-open-source-project-on-github).
