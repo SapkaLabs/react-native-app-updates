@@ -139,6 +139,9 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -147,4 +150,6 @@ jobs:
         run: yarn prepare
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
