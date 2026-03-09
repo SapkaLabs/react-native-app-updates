@@ -1,6 +1,6 @@
 {
   "name": "@sapkalabs/react-native-app-updates",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A React Native TurboModule for checking versions and performing app updates",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
