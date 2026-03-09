@@ -141,7 +141,7 @@ jobs:
           node-version-file: .nvmrc
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      # - run: npm ci
 
       - name: Install dependencies
         run: yarn install --immutable
