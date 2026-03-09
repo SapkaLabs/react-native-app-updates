@@ -140,6 +140,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           registry-url: 'https://registry.npmjs.org/'
+          scope: '@sapkalabs'
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -148,4 +149,6 @@ jobs:
         run: yarn prepare
 
       - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
