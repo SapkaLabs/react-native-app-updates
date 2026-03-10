@@ -1,14 +1,14 @@
 {
   "extends": "./tsconfig",
   "compilerOptions": {
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "noEmit": false,
-    "outDir": ".test-dist",
+    "allowJs": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": true,
     "rootDir": ".",
-    "types": ["node"],
+    "types": ["jest", "node"],
     "verbatimModuleSyntax": false
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "scripts/**/*.js"],
   "exclude": ["example", "lib"]
 }
