@@ -44,7 +44,7 @@ export function OfficialDiagnosticsDemo({
   versionOverride,
 }: OfficialDiagnosticsDemoProps) {
   const isAndroid = Platform.OS === 'android';
-  const [country, setCountry] = useState('us');
+  const [country, setCountry] = useState('');
   const [flow, setFlow] = useState<PlayStoreFlow>('auto');
   const [nativeSnapshot, setNativeSnapshot] = useState<NativeSnapshot | null>(
     null
@@ -211,7 +211,8 @@ export function OfficialDiagnosticsDemo({
           />
           <Text style={debugStyles.helperText}>
             Bundle ID and version overrides from the top of the page are applied
-            to the iOS parser when enabled.
+            to the iOS parser when enabled. Leave country empty to avoid sending
+            a storefront override.
           </Text>
         </View>
       )}

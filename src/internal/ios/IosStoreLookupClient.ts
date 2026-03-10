@@ -26,8 +26,6 @@ export interface IosStoreLookupClientOptions {
 }
 
 export class IosStoreLookupClient {
-  private static readonly cache = new Map<string, Promise<AppStoreInfo>>();
-
   private readonly bundleId: string;
   private readonly country?: string;
   private readonly fetchFn: typeof fetch;
@@ -41,25 +39,7 @@ export class IosStoreLookupClient {
   }
 
   async load(): Promise<AppStoreInfo> {
-    const cacheKey = `${this.bundleId}::${this.country ?? ''}`;
-    const cached = IosStoreLookupClient.cache.get(cacheKey);
-    if (cached) {
-      this.logger.debug('Serving cached App Store metadata.', {
-        bundleId: this.bundleId,
-        country: this.country,
-      });
-      return cached;
-    }
-
-    const request = this.fetchStoreInfo();
-    IosStoreLookupClient.cache.set(cacheKey, request);
-
-    try {
-      return await request;
-    } catch (error) {
-      IosStoreLookupClient.cache.delete(cacheKey);
-      throw error;
-    }
+    return this.fetchStoreInfo();
   }
 
   private async fetchStoreInfo(): Promise<AppStoreInfo> {
