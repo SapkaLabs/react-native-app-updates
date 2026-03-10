@@ -92,6 +92,89 @@ test('appStore source checks versions and normalizes the country code', async ()
   assert.equal(calls[0].includes('/us/lookup?bundleId=com.example.app'), true);
 });
 
+test('appStore source omits the country segment when no country is configured', async () => {
+  const calls = [];
+  const client = createInternalUpdateClient(
+    {
+      platforms: {
+        ios: {
+          source: sources.appStore(),
+        },
+      },
+    },
+    createEnvironment('ios', createNativeAdapter(), async (url) => {
+      calls.push(url);
+      return {
+        json: async () => ({
+          resultCount: 1,
+          results: [
+            {
+              trackId: 123,
+              version: '2.0.0',
+            },
+          ],
+        }),
+        ok: true,
+      };
+    })
+  );
+
+  const result = await client.checkForUpdate({ mode: 'versionCheckOnly' });
+
+  assert.equal(result.kind, 'updateAvailable');
+  assert.equal(calls[0], 'https://itunes.apple.com/lookup?bundleId=com.example.app');
+});
+
+test('recreating an iOS client does not reuse App Store lookup cache', async () => {
+  let fetchCount = 0;
+  const fetchFn = async () => {
+    fetchCount += 1;
+    return {
+      json: async () => ({
+        resultCount: 1,
+        results: [
+          {
+            trackId: 123,
+            version: fetchCount === 1 ? '2.0.0' : '3.0.0',
+          },
+        ],
+      }),
+      ok: true,
+    };
+  };
+
+  const clientOne = createInternalUpdateClient(
+    {
+      platforms: {
+        ios: {
+          source: sources.appStore(),
+        },
+      },
+    },
+    createEnvironment('ios', createNativeAdapter(), fetchFn)
+  );
+
+  const firstResult = await clientOne.checkForUpdate({ mode: 'versionCheckOnly' });
+  assert.equal(firstResult.kind, 'updateAvailable');
+  assert.equal(firstResult.availableVersion, '2.0.0');
+
+  const clientTwo = createInternalUpdateClient(
+    {
+      platforms: {
+        ios: {
+          source: sources.appStore(),
+        },
+      },
+    },
+    createEnvironment('ios', createNativeAdapter(), fetchFn)
+  );
+
+  const secondResult = await clientTwo.checkForUpdate({ mode: 'versionCheckOnly' });
+  assert.equal(secondResult.kind, 'updateAvailable');
+  assert.equal(secondResult.availableVersion, '3.0.0');
+  assert.equal(fetchCount, 2);
+});
+
 test('custom providers can return update metadata and redirect targets', async () => {
   const client = createInternalUpdateClient(
     {
