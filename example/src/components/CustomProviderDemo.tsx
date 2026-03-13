@@ -43,15 +43,10 @@ export function CustomProviderDemo({
   const client = useMemo(
     () =>
       createUpdateClient({
-        app:
-          bundleIdOverride || versionOverride
-            ? {
-                identifierOverride: bundleIdOverride,
-                versionOverride,
-              }
-            : undefined,
-        logging: {
+        debugging: {
+          identifierOverride: bundleIdOverride,
           verbose: true,
+          versionOverride,
         },
         platforms: {
           android: {
@@ -124,7 +119,7 @@ export function CustomProviderDemo({
 
       <Text style={debugStyles.helperText}>
         Top-level bundle ID and version overrides are passed into this client
-        when enabled.
+        through the debugging configuration when enabled.
       </Text>
 
       <ResultBlock title="Check Result" value={checkResult} />

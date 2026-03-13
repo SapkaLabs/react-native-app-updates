@@ -1,11 +1,8 @@
-import type { PlatformName, SourceType, UpdateClientConfig } from '../types';
+import type { UpdateClientConfig, UpdateClientDebuggingConfig } from '../types';
 
 interface NormalizedClientConfig {
-  readonly app: {
-    readonly identifierOverride?: string;
-    readonly versionOverride?: string;
-  };
-  readonly logging?: UpdateClientConfig['logging'];
+  readonly app?: UpdateClientConfig['app'];
+  readonly debugging: UpdateClientDebuggingConfig;
   readonly platforms: UpdateClientConfig['platforms'];
 }
 
@@ -16,17 +13,21 @@ export function normalizeClientConfig(
   config: UpdateClientConfig
 ): NormalizedClientConfig {
   const identifierOverride = normalizeOptionalString(
-    config.app?.identifierOverride
+    config.debugging?.identifierOverride
   );
-  const versionOverride = normalizeOptionalString(config.app?.versionOverride);
+  const versionOverride = normalizeOptionalString(
+    config.debugging?.versionOverride
+  );
   const iosSource = config.platforms.ios?.source;
 
   return {
-    app: {
+    app: config.app,
+    debugging: {
       identifierOverride,
+      logger: config.debugging?.logger,
+      verbose: config.debugging?.verbose,
       versionOverride,
     },
-    logging: config.logging,
     platforms: {
       android: config.platforms.android,
       ios: iosSource
@@ -48,7 +49,7 @@ export function normalizeClientConfig(
 
 export function getConfiguredPlatformSource(
   config: NormalizedClientConfig,
-  platform: PlatformName
+  platform: 'android' | 'ios'
 ) {
   return platform === 'android'
     ? config.platforms.android?.source
@@ -56,9 +57,7 @@ export function getConfiguredPlatformSource(
 }
 
 export function getIdentifierOverrideError(
-  identifierOverride: string | undefined,
-  platform: PlatformName,
-  sourceType: SourceType
+  identifierOverride: string | undefined
 ): string | null {
   if (!identifierOverride) {
     return null;
@@ -66,26 +65,6 @@ export function getIdentifierOverrideError(
 
   if (identifierOverride.includes(' ')) {
     return 'identifierOverride must not contain whitespace.';
-  }
-
-  if (platform === 'android' && sourceType === 'playStore') {
-    return null;
-  }
-
-  return null;
-}
-
-export function getVersionOverrideError(
-  versionOverride: string | undefined,
-  platform: PlatformName,
-  sourceType: SourceType
-): string | null {
-  if (!versionOverride) {
-    return null;
-  }
-
-  if (platform === 'android' && sourceType === 'playStore') {
-    return 'versionOverride is not supported with the official Play Store source.';
   }
 
   return null;
