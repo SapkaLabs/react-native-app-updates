@@ -3,6 +3,28 @@ export type SourceType = 'appStore' | 'custom' | 'playStore';
 export type CheckMode = 'offerUpdateAllowed' | 'versionCheckOnly';
 export type PlayStoreFlow = 'auto' | 'flexible' | 'immediate';
 export type UpdateMetadata = Readonly<Record<string, unknown>>;
+export type AndroidFakePlayStoreAvailability = 'available' | 'notAvailable';
+export type AndroidFakePlayStoreAction =
+  | 'downloadCompletes'
+  | 'downloadFails'
+  | 'downloadStarts'
+  | 'installCompletes'
+  | 'installFails'
+  | 'userAcceptsUpdate'
+  | 'userCancelsDownload'
+  | 'userRejectsUpdate';
+export type AndroidFakePlayStoreAllowedUpdateType = 'flexible' | 'immediate';
+export type AndroidFakePlayStoreStateAvailability =
+  | AndroidFakePlayStoreAvailability
+  | 'inProgress';
+export type AndroidFakeInstallErrorCode =
+  | 'app_not_owned'
+  | 'app_update_api_not_available'
+  | 'download_not_present'
+  | 'install_not_allowed'
+  | 'internal_error'
+  | 'play_store_not_found'
+  | 'unknown_error';
 
 export type UnsupportedReason =
   | 'androidAppNotOwned'
@@ -112,6 +134,11 @@ export interface PlayStoreSourceConfig {
   readonly type: 'playStore';
 }
 
+export interface FakePlayStoreSourceConfig {
+  readonly flow: PlayStoreFlow;
+  readonly type: 'fakePlayStore';
+}
+
 export interface CustomSourceConfig<
   TMetadata extends UpdateMetadata = UpdateMetadata
 > {
@@ -125,6 +152,7 @@ export type IOSSourceConfig =
 
 export type AndroidSourceConfig =
   | CustomSourceConfig<UpdateMetadata>
+  | FakePlayStoreSourceConfig
   | PlayStoreSourceConfig;
 
 export interface IOSPlatformConfig {
@@ -146,6 +174,69 @@ export interface UpdateClientConfig {
     readonly android?: AndroidPlatformConfig;
     readonly ios?: IOSPlatformConfig;
   };
+}
+
+interface AndroidFakePlayStoreBaseConfig {
+  readonly allowedUpdateTypes?: readonly AndroidFakePlayStoreAllowedUpdateType[];
+  readonly bytesDownloaded?: number;
+  readonly clientVersionStalenessDays?: number | null;
+  readonly installErrorCode?: AndroidFakeInstallErrorCode | null;
+  readonly totalBytesToDownload?: number;
+  readonly updatePriority?: number | null;
+}
+
+export type AndroidFakePlayStoreConfig =
+  | Readonly<
+      AndroidFakePlayStoreBaseConfig & {
+        readonly availability: 'available';
+        readonly availableVersionCode: number;
+      }
+    >
+  | Readonly<
+      AndroidFakePlayStoreBaseConfig & {
+        readonly availability: 'notAvailable';
+        readonly availableVersionCode?: number;
+      }
+    >;
+
+export interface AndroidFakePlayStoreState {
+  readonly allowedUpdateTypes: readonly AndroidFakePlayStoreAllowedUpdateType[];
+  readonly availability: AndroidFakePlayStoreStateAvailability;
+  readonly availableVersionCode: number | null;
+  readonly bytesDownloaded: number;
+  readonly clientVersionStalenessDays: number | null;
+  readonly installErrorCode: AndroidFakeInstallErrorCode | null;
+  readonly isConfirmationDialogVisible: boolean;
+  readonly isImmediateFlowVisible: boolean;
+  readonly isInstallSplashScreenVisible: boolean;
+  readonly totalBytesToDownload: number;
+  readonly updatePriority: number | null;
+}
+
+export type AndroidFakePlayStoreDebugResult<T> =
+  | Readonly<{
+      readonly kind: 'ok';
+      readonly value: T;
+    }>
+  | Readonly<{
+      readonly kind: 'unsupported';
+      readonly message?: string;
+      readonly reason:
+        | 'nativeCapabilityUnavailable'
+        | 'runtimePlatformUnsupported';
+    }>;
+
+export interface AndroidFakePlayStoreController {
+  configureState(
+    options: AndroidFakePlayStoreConfig
+  ): Promise<AndroidFakePlayStoreDebugResult<AndroidFakePlayStoreState>>;
+  dispatch(
+    action: AndroidFakePlayStoreAction
+  ): Promise<AndroidFakePlayStoreDebugResult<AndroidFakePlayStoreState>>;
+  getState(): Promise<
+    AndroidFakePlayStoreDebugResult<AndroidFakePlayStoreState>
+  >;
+  reset(): Promise<AndroidFakePlayStoreDebugResult<AndroidFakePlayStoreState>>;
 }
 
 export interface CheckForUpdateOptions {

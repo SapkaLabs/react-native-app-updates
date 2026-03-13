@@ -12,6 +12,7 @@ npm install @sapkalabs/react-native-app-updates
 
 ```ts
 import {
+  androidDebug,
   createUpdateClient,
   sources,
   type ILogger,
@@ -44,6 +45,22 @@ const result = await updates.checkForUpdate({
 if (result.kind === 'updateAvailable' && result.mode === 'offerUpdateAllowed') {
   await updates.performUpdate(result);
 }
+
+const fakeUpdates = createUpdateClient({
+  platforms: {
+    android: {
+      source: sources.fakePlayStore({
+        flow: 'auto',
+      }),
+    },
+  },
+});
+
+await androidDebug.fakePlayStore.configureState({
+  availability: 'available',
+  availableVersionCode: 100,
+  allowedUpdateTypes: ['flexible', 'immediate'],
+});
 ```
 
 ## Custom Providers
@@ -90,6 +107,7 @@ const updates = createUpdateClient({
 
 - iOS store lookup uses the installed bundle identifier by default, plus an optional App Store country. `debugging.identifierOverride` and `debugging.versionOverride` can override the installed values for iOS and custom sources.
 - Android Play integration uses the native Play Core API and supports `auto`, `immediate`, and `flexible` flow selection.
+- `sources.fakePlayStore(...)` uses Android's `FakeAppUpdateManager` so you can debug Play update flows locally. Use `androidDebug.fakePlayStore` to reset, configure, and advance the fake state machine.
 - The official Android Play source ignores `debugging.identifierOverride` and `debugging.versionOverride` and always uses the installed app metadata.
 - The library does not own timers, cooldown state, prompts, or localized UI copy.
 

@@ -19,7 +19,7 @@ export interface NativePlayUpdateInfo {
 
 interface ExampleNativeAppUpdatesSpec extends TurboModule {
   getInstalledAppInfo(): Promise<NativeInstalledAppInfo>;
-  getPlayUpdateInfo(): Promise<NativePlayUpdateInfo>;
+  getPlayUpdateInfo(backend: 'fake' | 'real'): Promise<NativePlayUpdateInfo>;
 }
 
 const NativeAppUpdates =
@@ -33,10 +33,12 @@ export async function readSystemAppInfo(): Promise<NativeInstalledAppInfo | null
   return NativeAppUpdates.getInstalledAppInfo();
 }
 
-export async function readPlayUpdateInfo(): Promise<NativePlayUpdateInfo | null> {
+export async function readPlayUpdateInfo(
+  backend: 'fake' | 'real'
+): Promise<NativePlayUpdateInfo | null> {
   if (!NativeAppUpdates) {
     return null;
   }
 
-  return NativeAppUpdates.getPlayUpdateInfo();
+  return NativeAppUpdates.getPlayUpdateInfo(backend);
 }
