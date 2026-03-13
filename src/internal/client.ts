@@ -21,7 +21,6 @@ import { createPlayStoreSource } from './sources/playStoreSource';
 import {
   getConfiguredPlatformSource,
   getIdentifierOverrideError,
-  getVersionOverrideError,
   normalizeClientConfig,
 } from './validation';
 
@@ -43,7 +42,7 @@ export function createInternalUpdateClient(
   environment: ClientEnvironment
 ): UpdateClient {
   const normalizedConfig = normalizeClientConfig(config);
-  const logger = createInternalLogger(normalizedConfig.logging);
+  const logger = createInternalLogger(normalizedConfig.debugging);
 
   return Object.freeze({
     async checkForUpdate(options: CheckForUpdateOptions): Promise<CheckResult> {
@@ -290,14 +289,17 @@ async function resolveInstalledAppInfo(
     };
   }
 
-  const identifierOverride = config.app.identifierOverride;
-  const versionOverride = config.app.versionOverride;
+  const shouldIgnoreDebugOverrides =
+    platform === 'android' && sourceConfig.type === 'playStore';
+  const identifierOverride = shouldIgnoreDebugOverrides
+    ? undefined
+    : config.debugging.identifierOverride;
+  const versionOverride = shouldIgnoreDebugOverrides
+    ? undefined
+    : config.debugging.versionOverride;
 
-  const identifierOverrideError = getIdentifierOverrideError(
-    identifierOverride,
-    platform,
-    sourceConfig.type
-  );
+  const identifierOverrideError =
+    getIdentifierOverrideError(identifierOverride);
   if (identifierOverrideError) {
     return {
       kind: 'invalidConfiguration',
@@ -307,49 +309,9 @@ async function resolveInstalledAppInfo(
       sourceType: sourceConfig.type,
     };
   }
-
-  const versionOverrideError = getVersionOverrideError(
-    versionOverride,
-    platform,
-    sourceConfig.type
-  );
-  if (versionOverrideError) {
-    return {
-      kind: 'invalidConfiguration',
-      message: versionOverrideError,
-      platform,
-      reason:
-        platform === 'android' && sourceConfig.type === 'playStore'
-          ? 'androidVersionOverrideNotSupported'
-          : 'invalidVersionOverride',
-      sourceType: sourceConfig.type,
-    };
-  }
-
-  if (
-    platform === 'android' &&
-    sourceConfig.type === 'playStore' &&
-    identifierOverride &&
-    identifierOverride !== nativeInstalledInfo.identifier
-  ) {
-    return {
-      kind: 'invalidConfiguration',
-      message:
-        'identifierOverride must match the installed Android package when using the Play Store source.',
-      platform,
-      reason: 'androidIdentifierOverrideMismatch',
-      sourceType: sourceConfig.type,
-    };
-  }
-
   const resolvedIdentifier =
-    platform === 'android' && sourceConfig.type === 'playStore'
-      ? nativeInstalledInfo.identifier
-      : identifierOverride ?? nativeInstalledInfo.identifier;
-  const resolvedVersion =
-    platform === 'android' && sourceConfig.type === 'playStore'
-      ? nativeInstalledInfo.version
-      : versionOverride ?? nativeInstalledInfo.version;
+    identifierOverride ?? nativeInstalledInfo.identifier;
+  const resolvedVersion = versionOverride ?? nativeInstalledInfo.version;
 
   return {
     buildNumber: nativeInstalledInfo.buildNumber ?? undefined,

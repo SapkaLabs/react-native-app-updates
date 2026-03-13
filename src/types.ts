@@ -16,8 +16,6 @@ export type UnsupportedReason =
 export type ProviderErrorReason = 'invalidRemoteResponse' | 'lookupFailed';
 
 export type InvalidConfigurationReason =
-  | 'androidIdentifierOverrideMismatch'
-  | 'androidVersionOverrideNotSupported'
   | 'invalidCountry'
   | 'invalidIdentifierOverride'
   | 'invalidInstalledIdentifier'
@@ -37,13 +35,29 @@ export type LogContext = Readonly<Record<string, unknown>>;
 
 /**
  * Logging contract used by the library and injected into custom providers.
- * `debug` is gated by the client's `logging.verbose` option.
+ * `debug` is gated by the client's `debugging.verbose` option.
  */
 export interface ILogger {
   debug(message: string, context?: LogContext): void;
   info(message: string, context?: LogContext): void;
   warn(message: string, context?: LogContext): void;
   error(message: string, context?: LogContext): void;
+}
+
+/**
+ * Reserved for future library-owned app configuration.
+ * Leave empty when provided.
+ */
+export type ReservedAppConfig = Readonly<Record<string, never>>;
+
+/**
+ * Optional debugging-only configuration for lookup overrides and logging.
+ */
+export interface UpdateClientDebuggingConfig {
+  readonly identifierOverride?: string;
+  readonly logger?: ILogger;
+  readonly verbose?: boolean;
+  readonly versionOverride?: string;
 }
 
 /**
@@ -123,17 +137,11 @@ export interface AndroidPlatformConfig {
 
 export interface UpdateClientConfig {
   /**
-   * Optional overrides used for lookup/comparison context.
-   * `versionOverride` is not supported for the official Android Play source.
+   * Reserved for future library-owned app configuration.
+   * Leave empty when provided.
    */
-  readonly app?: {
-    readonly identifierOverride?: string;
-    readonly versionOverride?: string;
-  };
-  readonly logging?: {
-    readonly logger?: ILogger;
-    readonly verbose?: boolean;
-  };
+  readonly app?: ReservedAppConfig;
+  readonly debugging?: UpdateClientDebuggingConfig;
   readonly platforms: {
     readonly android?: AndroidPlatformConfig;
     readonly ios?: IOSPlatformConfig;

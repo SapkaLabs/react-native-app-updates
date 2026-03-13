@@ -56,30 +56,23 @@ export function OfficialDiagnosticsDemo({
 
   const normalizedCountry = country.trim().toLowerCase() || undefined;
 
-  const officialAppConfig = useMemo(() => {
-    if (isAndroid) {
-      return bundleIdOverride
-        ? {
-            identifierOverride: bundleIdOverride,
-          }
-        : undefined;
-    }
-
-    return bundleIdOverride || versionOverride
-      ? {
-          identifierOverride: bundleIdOverride,
-          versionOverride,
-        }
-      : undefined;
-  }, [bundleIdOverride, isAndroid, versionOverride]);
+  const officialDebuggingConfig = useMemo(
+    () => ({
+      identifierOverride: bundleIdOverride,
+      verbose: true,
+      versionOverride,
+    }),
+    [bundleIdOverride, versionOverride]
+  );
 
   const effectiveOfficialOverrides = useMemo(
     () =>
       isAndroid
         ? {
-            identifierOverride: bundleIdOverride ?? '(system)',
-            versionOverride:
-              'Not applied for the official Play source. Android uses the installed app version.',
+            effectiveBehavior:
+              'Ignored for the official Play source. Android always uses the installed app metadata.',
+            identifierOverride: bundleIdOverride ?? '(not supplied)',
+            versionOverride: versionOverride ?? '(not supplied)',
           }
         : {
             identifierOverride: bundleIdOverride ?? '(system)',
@@ -91,10 +84,7 @@ export function OfficialDiagnosticsDemo({
   const client = useMemo(() => {
     if (isAndroid) {
       return createUpdateClient({
-        app: officialAppConfig,
-        logging: {
-          verbose: true,
-        },
+        debugging: officialDebuggingConfig,
         platforms: {
           android: {
             source: sources.playStore({ flow }),
@@ -104,17 +94,14 @@ export function OfficialDiagnosticsDemo({
     }
 
     return createUpdateClient({
-      app: officialAppConfig,
-      logging: {
-        verbose: true,
-      },
+      debugging: officialDebuggingConfig,
       platforms: {
         ios: {
           source: sources.appStore({ country: normalizedCountry }),
         },
       },
     });
-  }, [flow, isAndroid, normalizedCountry, officialAppConfig]);
+  }, [flow, isAndroid, normalizedCountry, officialDebuggingConfig]);
 
   async function readNativeState(): Promise<void> {
     const [latestSystemInfo, playUpdateInfo] = await Promise.all([
@@ -192,9 +179,9 @@ export function OfficialDiagnosticsDemo({
             value={flow}
           />
           <Text style={debugStyles.helperText}>
-            Bundle ID overrides are passed into the official Play client too.
-            Version overrides remain unsupported for the Play source and are not
-            applied here.
+            Bundle ID and version overrides are passed through the debugging
+            configuration, but the official Play source ignores both and always
+            uses the installed Android app metadata.
           </Text>
         </View>
       ) : (

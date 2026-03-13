@@ -135,16 +135,6 @@ function expectProviderError(result: CheckResult) {
   return result;
 }
 
-function expectInvalidConfiguration(result: CheckResult) {
-  expect(result.kind).toBe('invalidConfiguration');
-  if (result.kind !== 'invalidConfiguration') {
-    throw new Error(
-      `Expected invalidConfiguration result, received ${result.kind}.`
-    );
-  }
-  return result;
-}
-
 function expectRedirected(result: PerformUpdateResult) {
   expect(result.kind).toBe('redirected');
   if (result.kind !== 'redirected') {
@@ -179,7 +169,7 @@ describe('createInternalUpdateClient', () => {
 
     const client = createInternalUpdateClient(
       {
-        logging: { verbose: true },
+        debugging: { verbose: true },
         platforms: {
           ios: {
             source: sources.appStore({ country: 'US' }),
@@ -315,6 +305,50 @@ describe('createInternalUpdateClient', () => {
     expect(performResult.targetUrl).toBe('https://example.com/download');
   });
 
+  test('android custom providers still receive debugging overrides', async () => {
+    let receivedApp:
+      | {
+          readonly buildNumber?: string;
+          readonly identifier: string;
+          readonly version: string;
+        }
+      | undefined;
+
+    const client = createInternalUpdateClient(
+      {
+        debugging: {
+          identifierOverride: 'com.debug.override',
+          versionOverride: '9.9.9',
+        },
+        platforms: {
+          android: {
+            source: sources.custom({
+              async getLatestVersion(context) {
+                receivedApp = context.app;
+                return {
+                  latestVersion: '10.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('android', createNativeAdapter(), unexpectedFetch())
+    );
+
+    const result = expectUpdateAvailable(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    );
+
+    expect(receivedApp).toEqual({
+      buildNumber: '42',
+      identifier: 'com.debug.override',
+      version: '9.9.9',
+    });
+    expect(result.installedVersion).toBe('9.9.9');
+  });
+
   test('invalid custom provider payloads are surfaced as providerError', async () => {
     const client = createInternalUpdateClient(
       {
@@ -340,10 +374,11 @@ describe('createInternalUpdateClient', () => {
     expect(result.reason).toBe('invalidRemoteResponse');
   });
 
-  test('official Play source rejects version overrides', async () => {
+  test('official Play source ignores debugging overrides', async () => {
     const client = createInternalUpdateClient(
       {
-        app: {
+        debugging: {
+          identifierOverride: 'com.debug.override',
           versionOverride: '9.9.9',
         },
         platforms: {
@@ -355,10 +390,10 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('android', createNativeAdapter(), unexpectedFetch())
     );
 
-    const result = expectInvalidConfiguration(
+    const result = expectUpdateAvailable(
       await client.checkForUpdate({ mode: 'versionCheckOnly' })
     );
-    expect(result.reason).toBe('androidVersionOverrideNotSupported');
+    expect(result.installedVersion).toBe('1.0.0');
   });
 
   test('Play source maps app-not-owned to unsupported', async () => {

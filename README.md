@@ -31,7 +31,7 @@ const updates = createUpdateClient({
       }),
     },
   },
-  logging: {
+  debugging: {
     logger: console as ILogger,
     verbose: __DEV__,
   },
@@ -88,8 +88,9 @@ const updates = createUpdateClient({
 
 ## Notes
 
-- iOS store lookup uses the installed bundle identifier and optional App Store country.
+- iOS store lookup uses the installed bundle identifier by default, plus an optional App Store country. `debugging.identifierOverride` and `debugging.versionOverride` can override the installed values for iOS and custom sources.
 - Android Play integration uses the native Play Core API and supports `auto`, `immediate`, and `flexible` flow selection.
+- The official Android Play source ignores `debugging.identifierOverride` and `debugging.versionOverride` and always uses the installed app metadata.
 - The library does not own timers, cooldown state, prompts, or localized UI copy.
 
 ## Contributing

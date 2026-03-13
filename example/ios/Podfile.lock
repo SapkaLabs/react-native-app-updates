@@ -1,5 +1,5 @@
 PODS:
-  - AppUpdates (0.1.0):
+  - AppUpdates (0.1.7):
     - boost
     - DoubleConversion
     - fast_float
@@ -2726,7 +2726,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  AppUpdates: a3c2b8a9704477546da88336c20263a043c0fd66
+  AppUpdates: 0f2f06b199fda23e6921abe607d42e4bb1bda5a6
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6

@@ -26,6 +26,7 @@ export type {
   ProviderErrorReason,
   ProviderErrorResult,
   RedirectedUpdateResult,
+  ReservedAppConfig,
   SourceType,
   StartedUpdateResult,
   UnsupportedReason,
@@ -33,6 +34,7 @@ export type {
   UpdateAvailableResult,
   UpdateClient,
   UpdateClientConfig,
+  UpdateClientDebuggingConfig,
   UpdateMetadata,
   UpToDateResult,
 } from './types';
