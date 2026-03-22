@@ -23,6 +23,8 @@ runs:
 
     - name: Install dependencies
       if: steps.yarn-cache.outputs.cache-hit != 'true'
+      env:
+        YARN_ENABLE_HARDENED_MODE: 0
       run: yarn install --immutable
       shell: bash
 
