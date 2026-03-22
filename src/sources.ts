@@ -2,6 +2,7 @@ import type {
   AppStoreSourceConfig,
   CustomSourceConfig,
   CustomUpdateProvider,
+  FakePlayStoreSourceConfig,
   PlayStoreFlow,
   PlayStoreSourceConfig,
   UpdateMetadata,
@@ -28,6 +29,15 @@ export const sources = {
     return Object.freeze({
       flow: options.flow ?? 'auto',
       type: 'playStore' as const,
+    });
+  },
+
+  fakePlayStore(
+    options: { flow?: PlayStoreFlow } = {}
+  ): FakePlayStoreSourceConfig {
+    return Object.freeze({
+      flow: options.flow ?? 'auto',
+      type: 'fakePlayStore' as const,
     });
   },
 };

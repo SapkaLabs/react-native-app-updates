@@ -66,6 +66,62 @@ function createNativeAdapter(
         message: null,
         outcome: 'started',
       }),
+    getFakePlayStoreState: () =>
+      success({
+        allowedUpdateTypes: ['flexible', 'immediate'],
+        availability: 'available',
+        availableVersionCode: 99,
+        bytesDownloaded: 0,
+        clientVersionStalenessDays: null,
+        installErrorCode: null,
+        isConfirmationDialogVisible: false,
+        isImmediateFlowVisible: false,
+        isInstallSplashScreenVisible: false,
+        totalBytesToDownload: 1024,
+        updatePriority: 3,
+      }),
+    resetFakePlayStore: () =>
+      success({
+        allowedUpdateTypes: [],
+        availability: 'notAvailable',
+        availableVersionCode: null,
+        bytesDownloaded: 0,
+        clientVersionStalenessDays: null,
+        installErrorCode: null,
+        isConfirmationDialogVisible: false,
+        isImmediateFlowVisible: false,
+        isInstallSplashScreenVisible: false,
+        totalBytesToDownload: 0,
+        updatePriority: null,
+      }),
+    configureFakePlayStoreState: () =>
+      success({
+        allowedUpdateTypes: ['flexible', 'immediate'],
+        availability: 'available',
+        availableVersionCode: 99,
+        bytesDownloaded: 0,
+        clientVersionStalenessDays: null,
+        installErrorCode: null,
+        isConfirmationDialogVisible: false,
+        isImmediateFlowVisible: false,
+        isInstallSplashScreenVisible: false,
+        totalBytesToDownload: 1024,
+        updatePriority: 3,
+      }),
+    dispatchFakePlayStoreAction: () =>
+      success({
+        allowedUpdateTypes: ['flexible', 'immediate'],
+        availability: 'inProgress',
+        availableVersionCode: 99,
+        bytesDownloaded: 0,
+        clientVersionStalenessDays: null,
+        installErrorCode: null,
+        isConfirmationDialogVisible: false,
+        isImmediateFlowVisible: true,
+        isInstallSplashScreenVisible: false,
+        totalBytesToDownload: 1024,
+        updatePriority: 3,
+      }),
     ...overrides,
   };
 }
@@ -396,6 +452,61 @@ describe('createInternalUpdateClient', () => {
     expect(result.installedVersion).toBe('1.0.0');
   });
 
+  test('fake Play source passes the fake backend to native checks and performs', async () => {
+    const observedBackends: string[] = [];
+    const nativeAdapter = createNativeAdapter({
+      getPlayUpdateInfo: (backend) => {
+        observedBackends.push(`check:${backend}`);
+        return success({
+          availableVersionCode: 120,
+          clientVersionStalenessDays: 1,
+          errorCode: null,
+          flexibleAllowed: true,
+          immediateAllowed: true,
+          message: null,
+          status: 'update_available',
+          updatePriority: 4,
+        });
+      },
+      startPlayUpdate: (flow, resumeInProgress, backend) => {
+        observedBackends.push(`start:${backend}:${flow}:${resumeInProgress}`);
+        return success({
+          errorCode: null,
+          message: null,
+          outcome: 'started',
+        });
+      },
+    });
+
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          android: {
+            source: sources.fakePlayStore({ flow: 'auto' }),
+          },
+        },
+      },
+      createEnvironment('android', nativeAdapter, unexpectedFetch())
+    );
+
+    const checkResult = expectOfferUpdateAvailable(
+      await client.checkForUpdate({
+        mode: 'offerUpdateAllowed',
+      })
+    );
+
+    const performResult = expectStarted(
+      await client.performUpdate(checkResult)
+    );
+
+    expect(performResult.kind).toBe('started');
+    expect(observedBackends).toEqual([
+      'check:fake',
+      'check:fake',
+      'start:fake:flexible:false',
+    ]);
+  });
+
   test('Play source maps app-not-owned to unsupported', async () => {
     const client = createInternalUpdateClient(
       {
@@ -572,6 +683,14 @@ describe('createInternalUpdateClient', () => {
           openUrl: () =>
             failure('native_module_unavailable', 'missing native module'),
           startPlayUpdate: () =>
+            failure('native_module_unavailable', 'missing native module'),
+          getFakePlayStoreState: () =>
+            failure('native_module_unavailable', 'missing native module'),
+          resetFakePlayStore: () =>
+            failure('native_module_unavailable', 'missing native module'),
+          configureFakePlayStoreState: () =>
+            failure('native_module_unavailable', 'missing native module'),
+          dispatchFakePlayStoreAction: () =>
             failure('native_module_unavailable', 'missing native module'),
         },
         unexpectedFetch()

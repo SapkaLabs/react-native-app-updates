@@ -1,5 +1,8 @@
 import type {
+  NativeFakePlayStoreConfig,
+  NativeFakePlayStoreState,
   NativeOpenUrlResult,
+  NativePlayUpdateBackend,
   NativePlayUpdateInfo,
   NativeStartPlayUpdateResult,
   Spec,
@@ -26,12 +29,23 @@ export interface NativeAdapter {
       version: string;
     }>
   >;
-  getPlayUpdateInfo(): Promise<NativeResult<NativePlayUpdateInfo>>;
+  getPlayUpdateInfo(
+    backend: NativePlayUpdateBackend
+  ): Promise<NativeResult<NativePlayUpdateInfo>>;
   openUrl(url: string): Promise<NativeResult<NativeOpenUrlResult>>;
   startPlayUpdate(
     flow: string,
-    resumeInProgress: boolean
+    resumeInProgress: boolean,
+    backend: NativePlayUpdateBackend
   ): Promise<NativeResult<NativeStartPlayUpdateResult>>;
+  getFakePlayStoreState(): Promise<NativeResult<NativeFakePlayStoreState>>;
+  resetFakePlayStore(): Promise<NativeResult<NativeFakePlayStoreState>>;
+  configureFakePlayStoreState(
+    config: NativeFakePlayStoreConfig
+  ): Promise<NativeResult<NativeFakePlayStoreState>>;
+  dispatchFakePlayStoreAction(
+    action: string
+  ): Promise<NativeResult<NativeFakePlayStoreState>>;
 }
 
 export function createNativeAdapter(module: Spec | null): NativeAdapter {
@@ -59,7 +73,7 @@ export function createNativeAdapter(module: Spec | null): NativeAdapter {
       }
     },
 
-    async getPlayUpdateInfo() {
+    async getPlayUpdateInfo(backend: NativePlayUpdateBackend) {
       if (!module) {
         return {
           errorCode: 'native_module_unavailable',
@@ -71,7 +85,7 @@ export function createNativeAdapter(module: Spec | null): NativeAdapter {
       try {
         return {
           ok: true,
-          value: await module.getPlayUpdateInfo(),
+          value: await module.getPlayUpdateInfo(backend),
         };
       } catch (error) {
         return {
@@ -105,7 +119,11 @@ export function createNativeAdapter(module: Spec | null): NativeAdapter {
       }
     },
 
-    async startPlayUpdate(flow: string, resumeInProgress: boolean) {
+    async startPlayUpdate(
+      flow: string,
+      resumeInProgress: boolean,
+      backend: NativePlayUpdateBackend
+    ) {
       if (!module) {
         return {
           errorCode: 'native_module_unavailable',
@@ -117,7 +135,99 @@ export function createNativeAdapter(module: Spec | null): NativeAdapter {
       try {
         return {
           ok: true,
-          value: await module.startPlayUpdate(flow, resumeInProgress),
+          value: await module.startPlayUpdate(flow, resumeInProgress, backend),
+        };
+      } catch (error) {
+        return {
+          errorCode: 'native_exception',
+          message: error instanceof Error ? error.message : String(error),
+          ok: false,
+        };
+      }
+    },
+
+    async getFakePlayStoreState() {
+      if (!module) {
+        return {
+          errorCode: 'native_module_unavailable',
+          message: 'The AppUpdates TurboModule is not available.',
+          ok: false,
+        };
+      }
+
+      try {
+        return {
+          ok: true,
+          value: await module.getFakePlayStoreState(),
+        };
+      } catch (error) {
+        return {
+          errorCode: 'native_exception',
+          message: error instanceof Error ? error.message : String(error),
+          ok: false,
+        };
+      }
+    },
+
+    async resetFakePlayStore() {
+      if (!module) {
+        return {
+          errorCode: 'native_module_unavailable',
+          message: 'The AppUpdates TurboModule is not available.',
+          ok: false,
+        };
+      }
+
+      try {
+        return {
+          ok: true,
+          value: await module.resetFakePlayStore(),
+        };
+      } catch (error) {
+        return {
+          errorCode: 'native_exception',
+          message: error instanceof Error ? error.message : String(error),
+          ok: false,
+        };
+      }
+    },
+
+    async configureFakePlayStoreState(config: NativeFakePlayStoreConfig) {
+      if (!module) {
+        return {
+          errorCode: 'native_module_unavailable',
+          message: 'The AppUpdates TurboModule is not available.',
+          ok: false,
+        };
+      }
+
+      try {
+        return {
+          ok: true,
+          value: await module.configureFakePlayStoreState(config),
+        };
+      } catch (error) {
+        return {
+          errorCode: 'native_exception',
+          message: error instanceof Error ? error.message : String(error),
+          ok: false,
+        };
+      }
+    },
+
+    async dispatchFakePlayStoreAction(action: string) {
+      if (!module) {
+        return {
+          errorCode: 'native_module_unavailable',
+          message: 'The AppUpdates TurboModule is not available.',
+          ok: false,
+        };
+      }
+
+      try {
+        return {
+          ok: true,
+          value: await module.dispatchFakePlayStoreAction(action),
         };
       } catch (error) {
         return {

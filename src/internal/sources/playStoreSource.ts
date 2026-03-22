@@ -16,6 +16,11 @@ type ResolvedPlayAction = {
   readonly resumeInProgress: boolean;
 } | null;
 
+type PlayStoreLikeSourceConfig = Extract<
+  AndroidSourceConfig,
+  { readonly type: 'fakePlayStore' | 'playStore' }
+>;
+
 export function createPlayStoreSource(
   config: AndroidSourceConfig,
   logger: InternalLogger
@@ -24,9 +29,32 @@ export function createPlayStoreSource(
     throw new Error('createPlayStoreSource expects a playStore configuration.');
   }
 
+  return createSharedPlayStoreSource(config, logger, 'real');
+}
+
+export function createFakePlayStoreSource(
+  config: AndroidSourceConfig,
+  logger: InternalLogger
+): UpdateSource {
+  if (config.type !== 'fakePlayStore') {
+    throw new Error(
+      'createFakePlayStoreSource expects a fakePlayStore configuration.'
+    );
+  }
+
+  return createSharedPlayStoreSource(config, logger, 'fake');
+}
+
+function createSharedPlayStoreSource(
+  config: PlayStoreLikeSourceConfig,
+  logger: InternalLogger,
+  backend: 'fake' | 'real'
+): UpdateSource {
   return {
     async check(context: SourceCheckContext) {
-      const nativeInfoResult = await context.nativeAdapter.getPlayUpdateInfo();
+      const nativeInfoResult = await context.nativeAdapter.getPlayUpdateInfo(
+        backend
+      );
       if (!nativeInfoResult.ok) {
         return createUnsupportedResult(
           context.platform,
@@ -94,7 +122,9 @@ export function createPlayStoreSource(
     async performUpdate(
       context: SourcePerformContext
     ): Promise<PerformUpdateResult> {
-      const nativeInfoResult = await context.nativeAdapter.getPlayUpdateInfo();
+      const nativeInfoResult = await context.nativeAdapter.getPlayUpdateInfo(
+        backend
+      );
       if (!nativeInfoResult.ok) {
         return {
           kind: 'failed',
@@ -132,7 +162,8 @@ export function createPlayStoreSource(
 
       const startResult = await context.nativeAdapter.startPlayUpdate(
         action.flow,
-        action.resumeInProgress
+        action.resumeInProgress,
+        backend
       );
       if (!startResult.ok) {
         return {
@@ -167,6 +198,7 @@ export function createPlayStoreSource(
       }
 
       logger.info('Started Play in-app update flow.', {
+        backend,
         flow: action.flow,
         resumeInProgress: action.resumeInProgress,
       });
