@@ -1,16 +1,31 @@
 import type {
+  AppStoreRetryConfig,
   AppStoreSourceConfig,
   CustomSourceConfig,
   CustomUpdateProvider,
+  FakePlayStoreSourceConfig,
   PlayStoreFlow,
   PlayStoreSourceConfig,
   UpdateMetadata,
 } from './types';
 
 export const sources = {
-  appStore(options: { country?: string } = {}): AppStoreSourceConfig {
+  appStore(
+    options: {
+      country?: string;
+      retry?: AppStoreRetryConfig;
+    } = {}
+  ): AppStoreSourceConfig {
+    const retry = options.retry
+      ? Object.freeze({
+          baseDelayMs: options.retry.baseDelayMs,
+          maxAttempts: options.retry.maxAttempts,
+        })
+      : undefined;
+
     return Object.freeze({
       country: options.country,
+      retry,
       type: 'appStore' as const,
     });
   },
@@ -28,6 +43,15 @@ export const sources = {
     return Object.freeze({
       flow: options.flow ?? 'auto',
       type: 'playStore' as const,
+    });
+  },
+
+  fakePlayStore(
+    options: { flow?: PlayStoreFlow } = {}
+  ): FakePlayStoreSourceConfig {
+    return Object.freeze({
+      flow: options.flow ?? 'auto',
+      type: 'fakePlayStore' as const,
     });
   },
 };

@@ -17,7 +17,10 @@ import type { NativeAdapter, NativeFailure } from './nativeBridge';
 import type { ResolvedInstalledAppInfo, UpdateSource } from './sourceContracts';
 import { createAppStoreSource } from './sources/appStoreSource';
 import { createCustomSource } from './sources/customSource';
-import { createPlayStoreSource } from './sources/playStoreSource';
+import {
+  createFakePlayStoreSource,
+  createPlayStoreSource,
+} from './sources/playStoreSource';
 import {
   getConfiguredPlatformSource,
   getIdentifierOverrideError,
@@ -25,7 +28,6 @@ import {
 } from './validation';
 
 export interface ClientEnvironment {
-  readonly fetchFn: typeof fetch;
   readonly getPlatform: () => PlatformName | null;
   readonly nativeAdapter: NativeAdapter;
 }
@@ -35,6 +37,14 @@ interface ResolvedCheckContext {
   readonly platform: PlatformName;
   readonly source: UpdateSource;
   readonly sourceType: SourceType;
+}
+
+function toPublicSourceType(
+  sourceType:
+    | NonNullable<ReturnType<typeof getConfiguredPlatformSource>>['type']
+    | SourceType
+): SourceType {
+  return sourceType === 'fakePlayStore' ? 'playStore' : sourceType;
 }
 
 export function createInternalUpdateClient(
@@ -68,7 +78,6 @@ export function createInternalUpdateClient(
 
       try {
         return await runtimeContext.source.check({
-          fetchFn: environment.fetchFn,
           installedApp: runtimeContext.installedApp,
           logger,
           mode: options.mode,
@@ -138,7 +147,6 @@ export function createInternalUpdateClient(
 
       try {
         return await runtimeContext.source.performUpdate({
-          fetchFn: environment.fetchFn,
           installedApp: runtimeContext.installedApp,
           logger,
           nativeAdapter: environment.nativeAdapter,
@@ -232,7 +240,7 @@ function createSource(
           message: 'The App Store source can only be used on iOS.',
           platform,
           reason: 'unsupportedSourceForPlatform',
-          sourceType: sourceConfig.type,
+          sourceType: toPublicSourceType(sourceConfig.type),
         };
       }
       return createAppStoreSource(sourceConfig, logger);
@@ -247,10 +255,25 @@ function createSource(
           message: 'The Play Store source can only be used on Android.',
           platform,
           reason: 'unsupportedSourceForPlatform',
-          sourceType: sourceConfig.type,
+          sourceType: toPublicSourceType(sourceConfig.type),
         };
       }
       return createPlayStoreSource(sourceConfig as AndroidSourceConfig, logger);
+
+    case 'fakePlayStore':
+      if (platform !== 'android') {
+        return {
+          kind: 'invalidConfiguration',
+          message: 'The Play Store source can only be used on Android.',
+          platform,
+          reason: 'unsupportedSourceForPlatform',
+          sourceType: 'playStore',
+        };
+      }
+      return createFakePlayStoreSource(
+        sourceConfig as AndroidSourceConfig,
+        logger
+      );
   }
 }
 
@@ -275,7 +298,7 @@ async function resolveInstalledAppInfo(
       message: 'The native module returned an empty app identifier.',
       platform,
       reason: 'invalidInstalledIdentifier',
-      sourceType: sourceConfig.type,
+      sourceType: toPublicSourceType(sourceConfig.type),
     };
   }
 
@@ -285,12 +308,14 @@ async function resolveInstalledAppInfo(
       message: 'The native module returned an empty app version.',
       platform,
       reason: 'invalidInstalledVersion',
-      sourceType: sourceConfig.type,
+      sourceType: toPublicSourceType(sourceConfig.type),
     };
   }
 
   const shouldIgnoreDebugOverrides =
-    platform === 'android' && sourceConfig.type === 'playStore';
+    platform === 'android' &&
+    (sourceConfig.type === 'fakePlayStore' ||
+      sourceConfig.type === 'playStore');
   const identifierOverride = shouldIgnoreDebugOverrides
     ? undefined
     : config.debugging.identifierOverride;
@@ -306,7 +331,7 @@ async function resolveInstalledAppInfo(
       message: identifierOverrideError,
       platform,
       reason: 'invalidIdentifierOverride',
-      sourceType: sourceConfig.type,
+      sourceType: toPublicSourceType(sourceConfig.type),
     };
   }
   const resolvedIdentifier =

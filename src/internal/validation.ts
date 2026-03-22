@@ -38,6 +38,12 @@ export function normalizeClientConfig(
                     country: normalizeOptionalString(
                       iosSource.country
                     )?.toLowerCase(),
+                    retry: iosSource.retry
+                      ? {
+                          baseDelayMs: iosSource.retry.baseDelayMs,
+                          maxAttempts: iosSource.retry.maxAttempts,
+                        }
+                      : undefined,
                     type: 'appStore',
                   }
                 : iosSource,

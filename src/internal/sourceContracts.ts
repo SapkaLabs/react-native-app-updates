@@ -18,7 +18,6 @@ export interface ResolvedInstalledAppInfo {
 }
 
 export interface SourceCheckContext {
-  readonly fetchFn: typeof fetch;
   readonly installedApp: ResolvedInstalledAppInfo;
   readonly logger: InternalLogger;
   readonly mode: CheckMode;
@@ -27,7 +26,6 @@ export interface SourceCheckContext {
 }
 
 export interface SourcePerformContext {
-  readonly fetchFn: typeof fetch;
   readonly installedApp: ResolvedInstalledAppInfo;
   readonly logger: InternalLogger;
   readonly nativeAdapter: NativeAdapter;

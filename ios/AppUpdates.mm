@@ -19,8 +19,11 @@
 }
 
 - (void)getPlayUpdateInfo:(RCTPromiseResolveBlock)resolve
+                  backend:(NSString *)backend
                   reject:(RCTPromiseRejectBlock)reject
 {
+  (void)backend;
+
   resolve(@{
     @"status" : @"error",
     @"immediateAllowed" : @NO,
@@ -35,17 +38,55 @@
 
 - (void)startPlayUpdate:(NSString *)flow
        resumeInProgress:(BOOL)resumeInProgress
+                backend:(NSString *)backend
                 resolve:(RCTPromiseResolveBlock)resolve
                  reject:(RCTPromiseRejectBlock)reject
 {
   (void)flow;
   (void)resumeInProgress;
+  (void)backend;
 
   resolve(@{
     @"outcome" : @"failed",
     @"errorCode" : @"not_supported_on_platform",
     @"message" : @"Play in-app updates are only available on Android.",
   });
+}
+
+- (void)getFakePlayStoreState:(RCTPromiseResolveBlock)resolve
+                       reject:(RCTPromiseRejectBlock)reject
+{
+  (void)reject;
+
+  resolve([self createDefaultFakePlayStoreState]);
+}
+
+- (void)resetFakePlayStore:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject
+{
+  (void)reject;
+
+  resolve([self createDefaultFakePlayStoreState]);
+}
+
+- (void)configureFakePlayStoreState:(NSDictionary *)config
+                            resolve:(RCTPromiseResolveBlock)resolve
+                             reject:(RCTPromiseRejectBlock)reject
+{
+  (void)config;
+  (void)reject;
+
+  resolve([self createDefaultFakePlayStoreState]);
+}
+
+- (void)dispatchFakePlayStoreAction:(NSString *)action
+                            resolve:(RCTPromiseResolveBlock)resolve
+                             reject:(RCTPromiseRejectBlock)reject
+{
+  (void)action;
+  (void)reject;
+
+  resolve([self createDefaultFakePlayStoreState]);
 }
 
 - (void)openUrl:(NSString *)url
@@ -85,6 +126,23 @@
 + (NSString *)moduleName
 {
   return @"AppUpdates";
+}
+
+- (NSDictionary *)createDefaultFakePlayStoreState
+{
+  return @{
+    @"allowedUpdateTypes" : @[],
+    @"availability" : @"notAvailable",
+    @"availableVersionCode" : [NSNull null],
+    @"bytesDownloaded" : @0,
+    @"clientVersionStalenessDays" : [NSNull null],
+    @"installErrorCode" : [NSNull null],
+    @"isConfirmationDialogVisible" : @NO,
+    @"isImmediateFlowVisible" : @NO,
+    @"isInstallSplashScreenVisible" : @NO,
+    @"totalBytesToDownload" : @0,
+    @"updatePriority" : [NSNull null],
+  };
 }
 
 @end

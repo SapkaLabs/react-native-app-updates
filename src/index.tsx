@@ -1,7 +1,20 @@
 export { createUpdateClient } from './createUpdateClient';
+export { androidDebug } from './androidDebug';
 export { sources } from './sources';
 
 export type {
+  AppStoreLookupErrorDetails,
+  AppStoreLookupErrorType,
+  AppStoreRetryConfig,
+  AndroidFakeInstallErrorCode,
+  AndroidFakePlayStoreAction,
+  AndroidFakePlayStoreAllowedUpdateType,
+  AndroidFakePlayStoreAvailability,
+  AndroidFakePlayStoreConfig,
+  AndroidFakePlayStoreController,
+  AndroidFakePlayStoreDebugResult,
+  AndroidFakePlayStoreState,
+  AndroidFakePlayStoreStateAvailability,
   AndroidPlatformConfig,
   AndroidSourceConfig,
   AppStoreSourceConfig,
@@ -13,6 +26,7 @@ export type {
   CustomUpdateProviderContext,
   CustomUpdateProviderResult,
   FailedUpdateResult,
+  FakePlayStoreSourceConfig,
   ILogger,
   InvalidConfigurationReason,
   InvalidConfigurationResult,
