@@ -15,14 +15,13 @@ jest.mock('axios', () => ({
   __esModule: true,
   default: {
     get: jest.fn(),
-    isAxiosError: jest.fn(
-      (value: unknown) =>
-        Boolean(
-          value &&
-            typeof value === 'object' &&
-            'isAxiosError' in value &&
-            value.isAxiosError === true
-        )
+    isAxiosError: jest.fn((value: unknown) =>
+      Boolean(
+        value &&
+          typeof value === 'object' &&
+          'isAxiosError' in value &&
+          value.isAxiosError === true
+      )
     ),
   },
 }));
@@ -757,27 +756,24 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment(
-        'ios',
-        {
-          getInstalledAppInfo: () =>
-            failure('native_module_unavailable', 'missing native module'),
-          getPlayUpdateInfo: () =>
-            failure('native_module_unavailable', 'missing native module'),
-          openUrl: () =>
-            failure('native_module_unavailable', 'missing native module'),
-          startPlayUpdate: () =>
-            failure('native_module_unavailable', 'missing native module'),
-          getFakePlayStoreState: () =>
-            failure('native_module_unavailable', 'missing native module'),
-          resetFakePlayStore: () =>
-            failure('native_module_unavailable', 'missing native module'),
-          configureFakePlayStoreState: () =>
-            failure('native_module_unavailable', 'missing native module'),
-          dispatchFakePlayStoreAction: () =>
-            failure('native_module_unavailable', 'missing native module'),
-        }
-      )
+      createEnvironment('ios', {
+        getInstalledAppInfo: () =>
+          failure('native_module_unavailable', 'missing native module'),
+        getPlayUpdateInfo: () =>
+          failure('native_module_unavailable', 'missing native module'),
+        openUrl: () =>
+          failure('native_module_unavailable', 'missing native module'),
+        startPlayUpdate: () =>
+          failure('native_module_unavailable', 'missing native module'),
+        getFakePlayStoreState: () =>
+          failure('native_module_unavailable', 'missing native module'),
+        resetFakePlayStore: () =>
+          failure('native_module_unavailable', 'missing native module'),
+        configureFakePlayStoreState: () =>
+          failure('native_module_unavailable', 'missing native module'),
+        dispatchFakePlayStoreAction: () =>
+          failure('native_module_unavailable', 'missing native module'),
+      })
     );
 
     const result = expectUnsupported(

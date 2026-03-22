@@ -152,14 +152,12 @@ describe('IosStoreLookupClient', () => {
     const logger = createLogger();
     const sleep = jest.fn(async () => undefined);
     const httpClient = {
-      get: jest
-        .fn()
-        .mockRejectedValue(
-          createAxiosError({
-            code: 'ENOTFOUND',
-            message: 'Network Error',
-          })
-        ),
+      get: jest.fn().mockRejectedValue(
+        createAxiosError({
+          code: 'ENOTFOUND',
+          message: 'Network Error',
+        })
+      ),
     };
 
     const client = new IosStoreLookupClient({

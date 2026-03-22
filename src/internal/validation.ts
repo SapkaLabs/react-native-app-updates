@@ -35,18 +35,18 @@ export function normalizeClientConfig(
             source:
               iosSource.type === 'appStore'
                 ? {
-                     country: normalizeOptionalString(
-                       iosSource.country
-                     )?.toLowerCase(),
-                     retry: iosSource.retry
-                       ? {
-                           baseDelayMs: iosSource.retry.baseDelayMs,
-                           maxAttempts: iosSource.retry.maxAttempts,
-                         }
-                       : undefined,
-                     type: 'appStore',
-                   }
-                 : iosSource,
+                    country: normalizeOptionalString(
+                      iosSource.country
+                    )?.toLowerCase(),
+                    retry: iosSource.retry
+                      ? {
+                          baseDelayMs: iosSource.retry.baseDelayMs,
+                          maxAttempts: iosSource.retry.maxAttempts,
+                        }
+                      : undefined,
+                    type: 'appStore',
+                  }
+                : iosSource,
           }
         : undefined,
     },

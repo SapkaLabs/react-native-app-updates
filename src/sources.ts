@@ -10,10 +10,12 @@ import type {
 } from './types';
 
 export const sources = {
-  appStore(options: {
-    country?: string;
-    retry?: AppStoreRetryConfig;
-  } = {}): AppStoreSourceConfig {
+  appStore(
+    options: {
+      country?: string;
+      retry?: AppStoreRetryConfig;
+    } = {}
+  ): AppStoreSourceConfig {
     const retry = options.retry
       ? Object.freeze({
           baseDelayMs: options.retry.baseDelayMs,

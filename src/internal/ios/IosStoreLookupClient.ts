@@ -96,13 +96,20 @@ export class IosStoreLookupClient {
       url,
     });
 
-    for (let attempt = 1; attempt <= this.retryConfig.maxAttempts; attempt += 1) {
+    for (
+      let attempt = 1;
+      attempt <= this.retryConfig.maxAttempts;
+      attempt += 1
+    ) {
       try {
         const response = await this.httpClient.get(url);
         return this.parseResponse(response.data, attempt);
       } catch (error) {
         const failure = normalizeLookupFailure(error, attempt);
-        if (!failure.details.retryable || attempt >= this.retryConfig.maxAttempts) {
+        if (
+          !failure.details.retryable ||
+          attempt >= this.retryConfig.maxAttempts
+        ) {
           this.logFinalFailure(failure);
           throw failure;
         }
@@ -123,11 +130,15 @@ export class IosStoreLookupClient {
       }
     }
 
-    const failure = createLookupFailure('lookupFailed', {
-      message: DEFAULT_UNKNOWN_MESSAGE,
-      retryable: false,
-      type: 'unknown',
-    }, this.retryConfig.maxAttempts);
+    const failure = createLookupFailure(
+      'lookupFailed',
+      {
+        message: DEFAULT_UNKNOWN_MESSAGE,
+        retryable: false,
+        type: 'unknown',
+      },
+      this.retryConfig.maxAttempts
+    );
     this.logFinalFailure(failure);
     throw failure;
   }
@@ -152,42 +163,55 @@ export class IosStoreLookupClient {
     });
   }
 
-  private parseResponse(
-    payload: unknown,
-    attemptCount: number
-  ): AppStoreInfo {
+  private parseResponse(payload: unknown, attemptCount: number): AppStoreInfo {
     if (!isAppStoreLookupResponse(payload)) {
-      throw createLookupFailure('invalidRemoteResponse', {
-        message: 'App Store lookup returned an invalid response payload.',
-        retryable: false,
-        type: 'system',
-      }, attemptCount);
+      throw createLookupFailure(
+        'invalidRemoteResponse',
+        {
+          message: 'App Store lookup returned an invalid response payload.',
+          retryable: false,
+          type: 'system',
+        },
+        attemptCount
+      );
     }
 
     if (!payload.resultCount || payload.results.length === 0) {
-      throw createLookupFailure('invalidRemoteResponse', {
-        message: 'App Store lookup did not return any results.',
-        retryable: false,
-        type: 'system',
-      }, attemptCount);
+      throw createLookupFailure(
+        'invalidRemoteResponse',
+        {
+          message: 'App Store lookup did not return any results.',
+          retryable: false,
+          type: 'system',
+        },
+        attemptCount
+      );
     }
 
     const entry = payload.results[0];
     if (!entry || typeof entry.version !== 'string' || !entry.version.trim()) {
-      throw createLookupFailure('invalidRemoteResponse', {
-        message: 'App Store lookup returned an invalid version payload.',
-        retryable: false,
-        type: 'system',
-      }, attemptCount);
+      throw createLookupFailure(
+        'invalidRemoteResponse',
+        {
+          message: 'App Store lookup returned an invalid version payload.',
+          retryable: false,
+          type: 'system',
+        },
+        attemptCount
+      );
     }
 
     const storeUrl = buildStoreUrl(entry, this.country);
     if (!storeUrl) {
-      throw createLookupFailure('invalidRemoteResponse', {
-        message: 'App Store lookup returned no valid store URL.',
-        retryable: false,
-        type: 'system',
-      }, attemptCount);
+      throw createLookupFailure(
+        'invalidRemoteResponse',
+        {
+          message: 'App Store lookup returned no valid store URL.',
+          retryable: false,
+          type: 'system',
+        },
+        attemptCount
+      );
     }
 
     return {
@@ -240,30 +264,43 @@ function normalizeLookupFailure(
 
   if (axios.isAxiosError(error)) {
     if (error.response) {
-      return createLookupFailure('lookupFailed', {
-        code: error.code,
-        message: `App Store lookup failed with status ${error.response.status}.`,
-        retryable: false,
-        status: error.response.status,
-        type: 'system',
-      }, attemptCount);
+      return createLookupFailure(
+        'lookupFailed',
+        {
+          code: error.code,
+          message: `App Store lookup failed with status ${error.response.status}.`,
+          retryable: false,
+          status: error.response.status,
+          type: 'system',
+        },
+        attemptCount
+      );
     }
 
     if (error.code !== 'ERR_CANCELED') {
-      return createLookupFailure('lookupFailed', {
-        code: error.code,
-        message: error.message || 'App Store lookup failed due to a network error.',
-        retryable: true,
-        type: 'network',
-      }, attemptCount);
+      return createLookupFailure(
+        'lookupFailed',
+        {
+          code: error.code,
+          message:
+            error.message || 'App Store lookup failed due to a network error.',
+          retryable: true,
+          type: 'network',
+        },
+        attemptCount
+      );
     }
   }
 
-  return createLookupFailure('lookupFailed', {
-    message: error instanceof Error ? error.message : DEFAULT_UNKNOWN_MESSAGE,
-    retryable: false,
-    type: 'unknown',
-  }, attemptCount);
+  return createLookupFailure(
+    'lookupFailed',
+    {
+      message: error instanceof Error ? error.message : DEFAULT_UNKNOWN_MESSAGE,
+      retryable: false,
+      type: 'unknown',
+    },
+    attemptCount
+  );
 }
 
 function createLookupFailure(
@@ -274,7 +311,9 @@ function createLookupFailure(
   return new AppStoreLookupFailure(reason, attemptCount, details);
 }
 
-function isAppStoreLookupResponse(payload: unknown): payload is AppStoreLookupResponse {
+function isAppStoreLookupResponse(
+  payload: unknown
+): payload is AppStoreLookupResponse {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return false;
   }
