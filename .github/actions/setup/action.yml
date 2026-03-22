@@ -23,7 +23,13 @@ runs:
 
     - name: Install dependencies
       if: steps.yarn-cache.outputs.cache-hit != 'true'
-      run: yarn install --immutable
+      run: |
+        # Limit the hardened-mode bypass to pull_request installs, where Yarn auto-enables it.
+        if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+          YARN_ENABLE_HARDENED_MODE=0 yarn install --immutable
+        else
+          yarn install --immutable
+        fi
       shell: bash
 
     - name: Cache dependencies
