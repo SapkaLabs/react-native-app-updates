@@ -28,7 +28,6 @@ import {
 } from './validation';
 
 export interface ClientEnvironment {
-  readonly fetchFn: typeof fetch;
   readonly getPlatform: () => PlatformName | null;
   readonly nativeAdapter: NativeAdapter;
 }
@@ -79,7 +78,6 @@ export function createInternalUpdateClient(
 
       try {
         return await runtimeContext.source.check({
-          fetchFn: environment.fetchFn,
           installedApp: runtimeContext.installedApp,
           logger,
           mode: options.mode,
@@ -149,7 +147,6 @@ export function createInternalUpdateClient(
 
       try {
         return await runtimeContext.source.performUpdate({
-          fetchFn: environment.fetchFn,
           installedApp: runtimeContext.installedApp,
           logger,
           nativeAdapter: environment.nativeAdapter,

@@ -36,6 +36,7 @@ export type UnsupportedReason =
   | 'runtimePlatformUnsupported';
 
 export type ProviderErrorReason = 'invalidRemoteResponse' | 'lookupFailed';
+export type AppStoreLookupErrorType = 'network' | 'system' | 'unknown';
 
 export type InvalidConfigurationReason =
   | 'invalidCountry'
@@ -124,8 +125,22 @@ export interface CustomUpdateProvider<
   ): Promise<CustomUpdateProviderResult<TMetadata>>;
 }
 
+export interface AppStoreRetryConfig {
+  readonly baseDelayMs?: number;
+  readonly maxAttempts?: number;
+}
+
+export interface AppStoreLookupErrorDetails {
+  readonly code?: string;
+  readonly message: string;
+  readonly retryable: boolean;
+  readonly status?: number;
+  readonly type: AppStoreLookupErrorType;
+}
+
 export interface AppStoreSourceConfig {
   readonly country?: string;
+  readonly retry?: AppStoreRetryConfig;
   readonly type: 'appStore';
 }
 
@@ -274,6 +289,7 @@ export interface UnsupportedResult {
 }
 
 export interface ProviderErrorResult {
+  readonly error?: AppStoreLookupErrorDetails;
   readonly kind: 'providerError';
   readonly message?: string;
   readonly platform: PlatformName;

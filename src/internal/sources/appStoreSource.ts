@@ -1,5 +1,8 @@
 import type { AppStoreSourceConfig, PerformUpdateResult } from '../../types';
-import { IosStoreLookupClient } from '../ios/IosStoreLookupClient';
+import {
+  AppStoreLookupFailure,
+  IosStoreLookupClient,
+} from '../ios/IosStoreLookupClient';
 import type { InternalLogger } from '../logger';
 import type {
   SourceCheckContext,
@@ -29,8 +32,8 @@ export function createAppStoreSource(
         const client = new IosStoreLookupClient({
           bundleId: context.installedApp.identifier,
           country: config.country,
-          fetchFn: context.fetchFn,
           logger,
+          retry: config.retry,
         });
 
         const storeInfo = await client.load();
@@ -43,15 +46,34 @@ export function createAppStoreSource(
           targetUrl: storeInfo.storeUrl,
         });
       } catch (error) {
+        if (error instanceof AppStoreLookupFailure) {
+          return {
+            error: error.details,
+            kind: 'providerError',
+            message: error.message,
+            platform: context.platform,
+            reason: error.reason,
+            sourceType: 'appStore',
+          };
+        }
+
+        const message =
+          error instanceof Error ? error.message : 'Unknown App Store error.';
+
         logger.error('App Store lookup failed.', {
           bundleId: context.installedApp.identifier,
           country: config.country,
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorMessage: message,
         });
 
         return {
+          error: {
+            message,
+            retryable: false,
+            type: 'unknown',
+          },
           kind: 'providerError',
-          message: error instanceof Error ? error.message : String(error),
+          message,
           platform: context.platform,
           reason: 'lookupFailed',
           sourceType: 'appStore',

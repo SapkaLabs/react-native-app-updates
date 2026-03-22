@@ -1,3 +1,4 @@
+import axios from 'axios';
 import {
   createInternalUpdateClient,
   type ClientEnvironment,
@@ -10,6 +11,22 @@ import type {
 import type { NativeAdapter, NativeResult } from '../src/internal/nativeBridge';
 import { sources } from '../src/sources';
 
+jest.mock('axios', () => ({
+  __esModule: true,
+  default: {
+    get: jest.fn(),
+    isAxiosError: jest.fn(
+      (value: unknown) =>
+        Boolean(
+          value &&
+            typeof value === 'object' &&
+            'isAxiosError' in value &&
+            value.isAxiosError === true
+        )
+    ),
+  },
+}));
+
 function success<T>(value: T): Promise<NativeResult<T>> {
   return Promise.resolve({ ok: true, value });
 }
@@ -21,16 +38,42 @@ function failure(
   return Promise.resolve({ errorCode, message, ok: false });
 }
 
-function createFetchResponse(
-  payload: unknown,
-  ok = true,
-  status = 200
-): Response {
+function createAxiosResponse<T>(payload: T, status = 200) {
   return {
-    json: async () => payload,
-    ok,
+    data: payload,
     status,
-  } as Response;
+  } as {
+    data: T;
+    status: number;
+  };
+}
+
+function createAxiosError(options: {
+  code?: string;
+  message: string;
+  status?: number;
+}): Error & {
+  code?: string;
+  isAxiosError: true;
+  response?: {
+    status: number;
+  };
+} {
+  const error = new Error(options.message) as Error & {
+    code?: string;
+    isAxiosError: true;
+    response?: {
+      status: number;
+    };
+  };
+  error.code = options.code;
+  error.isAxiosError = true;
+  if (options.status !== undefined) {
+    error.response = {
+      status: options.status,
+    };
+  }
+  return error;
 }
 
 function createNativeAdapter(
@@ -128,19 +171,11 @@ function createNativeAdapter(
 
 function createEnvironment(
   platform: 'android' | 'ios',
-  nativeAdapter: NativeAdapter,
-  fetchFn: ClientEnvironment['fetchFn']
+  nativeAdapter: NativeAdapter
 ): ClientEnvironment {
   return {
-    fetchFn,
     getPlatform: () => platform,
     nativeAdapter,
-  };
-}
-
-function unexpectedFetch(): ClientEnvironment['fetchFn'] {
-  return async () => {
-    throw new Error('unexpected fetch');
   };
 }
 
@@ -208,11 +243,15 @@ function expectStarted(result: PerformUpdateResult) {
 }
 
 describe('createInternalUpdateClient', () => {
+  const mockedAxiosGet = axios.get as jest.MockedFunction<typeof axios.get>;
+
+  beforeEach(() => {
+    mockedAxiosGet.mockReset();
+  });
+
   test('appStore source checks versions and normalizes the country code', async () => {
-    const calls: string[] = [];
-    const fetchFn: ClientEnvironment['fetchFn'] = async (url) => {
-      calls.push(String(url));
-      return createFetchResponse({
+    mockedAxiosGet.mockResolvedValueOnce(
+      createAxiosResponse({
         resultCount: 1,
         results: [
           {
@@ -220,8 +259,8 @@ describe('createInternalUpdateClient', () => {
             version: '2.0.0',
           },
         ],
-      });
-    };
+      })
+    );
 
     const client = createInternalUpdateClient(
       {
@@ -232,7 +271,7 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('ios', createNativeAdapter(), fetchFn)
+      createEnvironment('ios', createNativeAdapter())
     );
 
     const result = expectUpdateAvailable(
@@ -240,14 +279,14 @@ describe('createInternalUpdateClient', () => {
     );
 
     expect(result.availableVersion).toBe('2.0.0');
-    expect(calls[0]).toContain('/us/lookup?bundleId=com.example.app');
+    expect(mockedAxiosGet).toHaveBeenCalledWith(
+      'https://itunes.apple.com/us/lookup?bundleId=com.example.app'
+    );
   });
 
   test('appStore source omits the country segment when no country is configured', async () => {
-    const calls: string[] = [];
-    const fetchFn: ClientEnvironment['fetchFn'] = async (url) => {
-      calls.push(String(url));
-      return createFetchResponse({
+    mockedAxiosGet.mockResolvedValueOnce(
+      createAxiosResponse({
         resultCount: 1,
         results: [
           {
@@ -255,8 +294,8 @@ describe('createInternalUpdateClient', () => {
             version: '2.0.0',
           },
         ],
-      });
-    };
+      })
+    );
 
     const client = createInternalUpdateClient(
       {
@@ -266,31 +305,41 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('ios', createNativeAdapter(), fetchFn)
+      createEnvironment('ios', createNativeAdapter())
     );
 
     expectUpdateAvailable(
       await client.checkForUpdate({ mode: 'versionCheckOnly' })
     );
-    expect(calls[0]).toBe(
+    expect(mockedAxiosGet).toHaveBeenCalledWith(
       'https://itunes.apple.com/lookup?bundleId=com.example.app'
     );
   });
 
   test('recreating an iOS client does not reuse App Store lookup cache', async () => {
-    let fetchCount = 0;
-    const fetchFn: ClientEnvironment['fetchFn'] = async () => {
-      fetchCount += 1;
-      return createFetchResponse({
-        resultCount: 1,
-        results: [
-          {
-            trackId: 123,
-            version: fetchCount === 1 ? '2.0.0' : '3.0.0',
-          },
-        ],
-      });
-    };
+    mockedAxiosGet
+      .mockResolvedValueOnce(
+        createAxiosResponse({
+          resultCount: 1,
+          results: [
+            {
+              trackId: 123,
+              version: '2.0.0',
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        createAxiosResponse({
+          resultCount: 1,
+          results: [
+            {
+              trackId: 123,
+              version: '3.0.0',
+            },
+          ],
+        })
+      );
 
     const clientOne = createInternalUpdateClient(
       {
@@ -300,7 +349,7 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('ios', createNativeAdapter(), fetchFn)
+      createEnvironment('ios', createNativeAdapter())
     );
 
     const firstResult = expectUpdateAvailable(
@@ -316,14 +365,14 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('ios', createNativeAdapter(), fetchFn)
+      createEnvironment('ios', createNativeAdapter())
     );
 
     const secondResult = expectUpdateAvailable(
       await clientTwo.checkForUpdate({ mode: 'versionCheckOnly' })
     );
     expect(secondResult.availableVersion).toBe('3.0.0');
-    expect(fetchCount).toBe(2);
+    expect(mockedAxiosGet).toHaveBeenCalledTimes(2);
   });
 
   test('custom providers can return update metadata and redirect targets', async () => {
@@ -344,7 +393,7 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('ios', createNativeAdapter(), unexpectedFetch())
+      createEnvironment('ios', createNativeAdapter())
     );
 
     const checkResult = expectOfferUpdateAvailable(
@@ -390,7 +439,7 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('android', createNativeAdapter(), unexpectedFetch())
+      createEnvironment('android', createNativeAdapter())
     );
 
     const result = expectUpdateAvailable(
@@ -421,13 +470,51 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('ios', createNativeAdapter(), unexpectedFetch())
+      createEnvironment('ios', createNativeAdapter())
     );
 
     const result = expectProviderError(
       await client.checkForUpdate({ mode: 'versionCheckOnly' })
     );
     expect(result.reason).toBe('invalidRemoteResponse');
+  });
+
+  test('appStore provider errors expose typed network error details', async () => {
+    mockedAxiosGet.mockRejectedValueOnce(
+      createAxiosError({
+        code: 'ENOTFOUND',
+        message: 'Network Error',
+      })
+    );
+
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.appStore({
+              retry: {
+                baseDelayMs: 10,
+                maxAttempts: 1,
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    const result = expectProviderError(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    );
+
+    expect(result.reason).toBe('lookupFailed');
+    expect(result.message).toBe('Network Error');
+    expect(result.error).toEqual({
+      code: 'ENOTFOUND',
+      message: 'Network Error',
+      retryable: true,
+      type: 'network',
+    });
   });
 
   test('official Play source ignores debugging overrides', async () => {
@@ -443,7 +530,7 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('android', createNativeAdapter(), unexpectedFetch())
+      createEnvironment('android', createNativeAdapter())
     );
 
     const result = expectUpdateAvailable(
@@ -486,7 +573,7 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('android', nativeAdapter, unexpectedFetch())
+      createEnvironment('android', nativeAdapter)
     );
 
     const checkResult = expectOfferUpdateAvailable(
@@ -530,8 +617,7 @@ describe('createInternalUpdateClient', () => {
               status: 'error',
               updatePriority: null,
             }),
-        }),
-        unexpectedFetch()
+        })
       )
     );
 
@@ -565,8 +651,7 @@ describe('createInternalUpdateClient', () => {
               status: 'error',
               updatePriority: null,
             }),
-        }),
-        unexpectedFetch()
+        })
       )
     );
 
@@ -608,7 +693,7 @@ describe('createInternalUpdateClient', () => {
           },
         },
       },
-      createEnvironment('android', nativeAdapter, unexpectedFetch())
+      createEnvironment('android', nativeAdapter)
     );
 
     const checkResult = expectOfferUpdateAvailable(
@@ -646,8 +731,7 @@ describe('createInternalUpdateClient', () => {
               status: 'update_available',
               updatePriority: 4,
             }),
-        }),
-        unexpectedFetch()
+        })
       )
     );
 
@@ -692,8 +776,7 @@ describe('createInternalUpdateClient', () => {
             failure('native_module_unavailable', 'missing native module'),
           dispatchFakePlayStoreAction: () =>
             failure('native_module_unavailable', 'missing native module'),
-        },
-        unexpectedFetch()
+        }
       )
     );
 

@@ -3,6 +3,9 @@ export { androidDebug } from './androidDebug';
 export { sources } from './sources';
 
 export type {
+  AppStoreLookupErrorDetails,
+  AppStoreLookupErrorType,
+  AppStoreRetryConfig,
   AndroidFakeInstallErrorCode,
   AndroidFakePlayStoreAction,
   AndroidFakePlayStoreAllowedUpdateType,

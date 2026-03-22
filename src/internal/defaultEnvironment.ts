@@ -14,7 +14,6 @@ function getRuntimePlatform(): PlatformName | null {
 
 export function createDefaultEnvironment(): ClientEnvironment {
   return {
-    fetchFn: fetch,
     getPlatform: getRuntimePlatform,
     nativeAdapter: createNativeAdapter(NativeAppUpdates ?? null),
   };
