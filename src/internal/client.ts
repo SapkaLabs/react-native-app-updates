@@ -55,8 +55,15 @@ export function createInternalUpdateClient(
 }
 
 class InternalUpdateClient implements UpdateClient {
-  private pendingUpdateAction: PendingUpdateAction | null = null;
+  #pendingUpdateAction: PendingUpdateAction | null = null;
 
+  private get pendingUpdateAction(): PendingUpdateAction | null {
+    return this.#pendingUpdateAction;
+  }
+
+  private set pendingUpdateAction(value: PendingUpdateAction | null) {
+    this.#pendingUpdateAction = value;
+  }
   constructor(
     private readonly normalizedConfig: ReturnType<typeof normalizeClientConfig>,
     private readonly environment: ClientEnvironment,
