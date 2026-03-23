@@ -4,6 +4,7 @@ import type {
   PlayStoreFlow,
   UnsupportedReason,
 } from '../../types';
+import type { InternalCheckResult } from '../checkOutcome';
 import type { InternalLogger } from '../logger';
 import type {
   SourceCheckContext,
@@ -218,7 +219,7 @@ function createUnsupportedResult(
   platform: 'android' | 'ios',
   reason: UnsupportedReason,
   message?: string
-) {
+): InternalCheckResult {
   return {
     kind: 'unsupported' as const,
     message,

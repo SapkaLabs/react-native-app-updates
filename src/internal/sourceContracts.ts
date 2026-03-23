@@ -1,11 +1,10 @@
 import type {
   CheckMode,
-  CheckResult,
   PerformUpdateResult,
   PlatformName,
   SourceType,
-  UpdateAvailableResult,
 } from '../types';
+import type { InternalCheckResult, PendingUpdateAction } from './checkOutcome';
 import type { InternalLogger } from './logger';
 import type { NativeAdapter } from './nativeBridge';
 
@@ -26,17 +25,15 @@ export interface SourceCheckContext {
 }
 
 export interface SourcePerformContext {
+  readonly action: PendingUpdateAction;
   readonly installedApp: ResolvedInstalledAppInfo;
   readonly logger: InternalLogger;
   readonly nativeAdapter: NativeAdapter;
   readonly platform: PlatformName;
-  readonly result: UpdateAvailableResult & {
-    readonly mode: 'offerUpdateAllowed';
-  };
 }
 
 export interface UpdateSource {
   readonly type: SourceType;
-  check(context: SourceCheckContext): Promise<CheckResult>;
+  check(context: SourceCheckContext): Promise<InternalCheckResult>;
   performUpdate(context: SourcePerformContext): Promise<PerformUpdateResult>;
 }

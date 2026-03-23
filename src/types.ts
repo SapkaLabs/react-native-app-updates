@@ -1,6 +1,8 @@
 export type PlatformName = 'android' | 'ios';
 export type SourceType = 'appStore' | 'custom' | 'playStore';
 export type CheckMode = 'offerUpdateAllowed' | 'versionCheckOnly';
+export type CheckStatus = 'hasUpdates' | 'noUpdates' | 'error';
+export type CheckErrorType = 'configuration' | 'provider' | 'unsupported';
 export type PlayStoreFlow = 'auto' | 'flexible' | 'immediate';
 export type UpdateMetadata = Readonly<Record<string, unknown>>;
 export type AndroidFakePlayStoreAvailability = 'available' | 'notAvailable';
@@ -258,59 +260,98 @@ export interface CheckForUpdateOptions {
   readonly mode: CheckMode;
 }
 
-interface BaseCheckResult {
-  readonly installedBuildNumber?: string;
-  readonly installedVersion: string;
-  readonly mode: CheckMode;
-  readonly platform: PlatformName;
-  readonly sourceType: SourceType;
+export class CheckResult {
+  readonly #availableVersion?: string;
+  readonly #currentVersion?: string;
+  readonly #errorMessage?: string;
+  readonly #errorType?: CheckErrorType;
+  readonly #status: CheckStatus;
+  readonly #actionable: boolean;
+
+  constructor(init: {
+    readonly availableVersion?: string;
+    readonly canPerformUpdate?: boolean;
+    readonly currentVersion?: string;
+    readonly errorMessage?: string;
+    readonly errorType?: CheckErrorType;
+    readonly status: CheckStatus;
+  }) {
+    this.#availableVersion = init.availableVersion;
+    this.#currentVersion = init.currentVersion;
+    this.#errorMessage = init.errorMessage;
+    this.#errorType = init.errorType;
+    this.#status = init.status;
+    this.#actionable = init.canPerformUpdate ?? false;
+
+    defineEnumerableProperty(this, 'status', () => this.#status);
+    if (this.#availableVersion !== undefined) {
+      defineEnumerableProperty(
+        this,
+        'availableVersion',
+        () => this.#availableVersion
+      );
+    }
+    if (this.#currentVersion !== undefined) {
+      defineEnumerableProperty(
+        this,
+        'currentVersion',
+        () => this.#currentVersion
+      );
+    }
+    if (this.#errorMessage !== undefined) {
+      defineEnumerableProperty(this, 'errorMessage', () => this.#errorMessage);
+    }
+    if (this.#errorType !== undefined) {
+      defineEnumerableProperty(this, 'errorType', () => this.#errorType);
+    }
+
+    Object.freeze(this);
+  }
+
+  get availableVersion(): string | undefined {
+    return this.#availableVersion;
+  }
+
+  canPerformUpdate(): boolean {
+    return this.#actionable;
+  }
+
+  get currentVersion(): string | undefined {
+    return this.#currentVersion;
+  }
+
+  get errorMessage(): string | undefined {
+    return this.#errorMessage;
+  }
+
+  get errorType(): CheckErrorType | undefined {
+    return this.#errorType;
+  }
+
+  hasUpdates(): boolean {
+    return this.status === 'hasUpdates';
+  }
+
+  isError(): boolean {
+    return this.status === 'error';
+  }
+
+  get status(): CheckStatus {
+    return this.#status;
+  }
 }
 
-export interface UpToDateResult extends BaseCheckResult {
-  readonly availableBuildNumber?: string;
-  readonly availableVersion?: string;
-  readonly kind: 'upToDate';
+function defineEnumerableProperty<T extends object, TValue>(
+  target: T,
+  key: string,
+  getter: () => TValue
+): void {
+  Object.defineProperty(target, key, {
+    configurable: false,
+    enumerable: true,
+    get: getter,
+  });
 }
-
-export interface UpdateAvailableResult extends BaseCheckResult {
-  readonly availableBuildNumber?: string;
-  readonly availableVersion?: string;
-  readonly kind: 'updateAvailable';
-  readonly metadata?: UpdateMetadata;
-  readonly targetUrl?: string;
-}
-
-export interface UnsupportedResult {
-  readonly kind: 'unsupported';
-  readonly message?: string;
-  readonly platform: PlatformName;
-  readonly reason: UnsupportedReason;
-  readonly sourceType?: SourceType;
-}
-
-export interface ProviderErrorResult {
-  readonly error?: AppStoreLookupErrorDetails;
-  readonly kind: 'providerError';
-  readonly message?: string;
-  readonly platform: PlatformName;
-  readonly reason: ProviderErrorReason;
-  readonly sourceType: SourceType;
-}
-
-export interface InvalidConfigurationResult {
-  readonly kind: 'invalidConfiguration';
-  readonly message?: string;
-  readonly platform: PlatformName;
-  readonly reason: InvalidConfigurationReason;
-  readonly sourceType?: SourceType;
-}
-
-export type CheckResult =
-  | InvalidConfigurationResult
-  | ProviderErrorResult
-  | UnsupportedResult
-  | UpToDateResult
-  | UpdateAvailableResult;
 
 interface BasePerformUpdateResult {
   readonly platform: PlatformName;
@@ -345,7 +386,5 @@ export type PerformUpdateResult =
 
 export interface UpdateClient {
   checkForUpdate(options: CheckForUpdateOptions): Promise<CheckResult>;
-  performUpdate(
-    result: UpdateAvailableResult & { readonly mode: 'offerUpdateAllowed' }
-  ): Promise<PerformUpdateResult>;
+  performUpdate(): Promise<PerformUpdateResult>;
 }

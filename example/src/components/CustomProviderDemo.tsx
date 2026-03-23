@@ -6,7 +6,6 @@ import {
   type CheckMode,
   type CheckResult,
   type CustomUpdateProvider,
-  type UpdateAvailableResult,
 } from '@sapkalabs/react-native-app-updates';
 import { ActionButton, Card, debugStyles, ResultBlock } from './DebugUi';
 
@@ -14,10 +13,6 @@ interface CustomProviderDemoProps {
   readonly bundleIdOverride?: string;
   readonly versionOverride?: string;
 }
-
-type ActionableResult = UpdateAvailableResult & {
-  readonly mode: 'offerUpdateAllowed';
-};
 
 const demoProvider: CustomUpdateProvider = {
   async getLatestVersion() {
@@ -37,8 +32,6 @@ export function CustomProviderDemo({
 }: CustomProviderDemoProps) {
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [performResult, setPerformResult] = useState<unknown>(null);
-  const [actionableResult, setActionableResult] =
-    useState<ActionableResult | null>(null);
 
   const client = useMemo(
     () =>
@@ -64,15 +57,14 @@ export function CustomProviderDemo({
     setPerformResult(null);
     const result = await client.checkForUpdate({ mode });
     setCheckResult(result);
-    setActionableResult(toActionableResult(result, mode));
   }
 
   async function runPerformUpdate(): Promise<void> {
-    if (!actionableResult) {
+    if (!checkResult?.canPerformUpdate()) {
       return;
     }
 
-    const result = await client.performUpdate(actionableResult);
+    const result = await client.performUpdate();
     setPerformResult(result);
   }
 
@@ -110,7 +102,7 @@ export function CustomProviderDemo({
           onPress={() => runCheck('offerUpdateAllowed')}
         />
         <ActionButton
-          disabled={!actionableResult}
+          disabled={!checkResult?.canPerformUpdate()}
           label="Perform Update"
           onPress={runPerformUpdate}
           variant="secondary"
@@ -126,18 +118,4 @@ export function CustomProviderDemo({
       <ResultBlock title="Perform Result" value={performResult} />
     </Card>
   );
-}
-
-function toActionableResult(
-  result: CheckResult,
-  mode: CheckMode
-): ActionableResult | null {
-  if (result.kind !== 'updateAvailable' || mode !== 'offerUpdateAllowed') {
-    return null;
-  }
-
-  return {
-    ...result,
-    mode: 'offerUpdateAllowed',
-  };
 }

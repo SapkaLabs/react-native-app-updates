@@ -1,17 +1,20 @@
-import type {
-  AndroidSourceConfig,
-  CheckForUpdateOptions,
+import {
   CheckResult,
-  InvalidConfigurationResult,
-  PerformUpdateResult,
-  PlatformName,
-  ProviderErrorResult,
-  SourceType,
-  UnsupportedResult,
-  UpdateAvailableResult,
-  UpdateClient,
-  UpdateClientConfig,
+  type AndroidSourceConfig,
+  type CheckForUpdateOptions,
+  type PerformUpdateResult,
+  type PlatformName,
+  type SourceType,
+  type UpdateClient,
+  type UpdateClientConfig,
 } from '../types';
+import type {
+  InternalCheckResult,
+  InternalInvalidConfigurationResult,
+  InternalProviderErrorResult,
+  InternalUnsupportedResult,
+  PendingUpdateAction,
+} from './checkOutcome';
 import { createInternalLogger, type InternalLogger } from './logger';
 import type { NativeAdapter, NativeFailure } from './nativeBridge';
 import type { ResolvedInstalledAppInfo, UpdateSource } from './sourceContracts';
@@ -39,6 +42,181 @@ interface ResolvedCheckContext {
   readonly sourceType: SourceType;
 }
 
+export function createInternalUpdateClient(
+  config: UpdateClientConfig,
+  environment: ClientEnvironment
+): UpdateClient {
+  const normalizedConfig = normalizeClientConfig(config);
+  return new InternalUpdateClient(
+    normalizedConfig,
+    environment,
+    createInternalLogger(normalizedConfig.debugging)
+  );
+}
+
+class InternalUpdateClient implements UpdateClient {
+  private pendingUpdateAction: PendingUpdateAction | null = null;
+
+  constructor(
+    private readonly normalizedConfig: ReturnType<typeof normalizeClientConfig>,
+    private readonly environment: ClientEnvironment,
+    private readonly logger: InternalLogger
+  ) {}
+
+  async checkForUpdate(options: CheckForUpdateOptions): Promise<CheckResult> {
+    const platform = this.environment.getPlatform();
+    if (!platform) {
+      this.clearPendingUpdateAction();
+      return new CheckResult({
+        errorMessage: 'The current runtime platform is not supported.',
+        errorType: 'unsupported',
+        status: 'error',
+      });
+    }
+
+    const runtimeContext = await resolveCheckContext(
+      this.normalizedConfig,
+      platform,
+      this.logger,
+      this.environment
+    );
+    if ('kind' in runtimeContext) {
+      this.clearPendingUpdateAction();
+      return toPublicCheckResult(runtimeContext, false);
+    }
+
+    try {
+      const result = await runtimeContext.source.check({
+        installedApp: runtimeContext.installedApp,
+        logger: this.logger,
+        mode: options.mode,
+        nativeAdapter: this.environment.nativeAdapter,
+        platform,
+      });
+
+      const canPerformUpdate = this.updatePendingActionFromCheckResult(result);
+      return toPublicCheckResult(result, canPerformUpdate);
+    } catch (error) {
+      this.logger.error('Unexpected error while checking for updates.', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        platform,
+        sourceType: runtimeContext.sourceType,
+      });
+
+      this.clearPendingUpdateAction();
+      return toPublicCheckResult(
+        createUnexpectedCheckFailure(platform, runtimeContext.sourceType),
+        false
+      );
+    }
+  }
+
+  async performUpdate(): Promise<PerformUpdateResult> {
+    const pendingAction = this.pendingUpdateAction;
+    if (!pendingAction) {
+      const platform = this.environment.getPlatform();
+      return {
+        kind: 'failed',
+        message: 'No pending update is stored on this client instance.',
+        platform: platform ?? resolveFallbackPlatform(this.normalizedConfig),
+        reason: 'invalidUpdateRequest',
+        sourceType: resolveFallbackSourceType(this.normalizedConfig, platform),
+      };
+    }
+
+    const platform = this.environment.getPlatform();
+    if (!platform) {
+      return {
+        kind: 'failed',
+        platform: pendingAction.platform,
+        reason: 'nativeCapabilityUnavailable',
+        sourceType: pendingAction.sourceType,
+      };
+    }
+
+    if (pendingAction.platform !== platform) {
+      return {
+        kind: 'failed',
+        message:
+          'No pending update is stored on this client instance for the current platform.',
+        platform,
+        reason: 'invalidUpdateRequest',
+        sourceType: pendingAction.sourceType,
+      };
+    }
+
+    const runtimeContext = await resolveCheckContext(
+      this.normalizedConfig,
+      platform,
+      this.logger,
+      this.environment
+    );
+    if ('kind' in runtimeContext) {
+      return {
+        kind: 'failed',
+        message: runtimeContext.message,
+        platform,
+        reason:
+          runtimeContext.kind === 'unsupported'
+            ? 'nativeCapabilityUnavailable'
+            : 'invalidUpdateRequest',
+        sourceType: pendingAction.sourceType,
+      };
+    }
+
+    try {
+      return await runtimeContext.source.performUpdate({
+        action: pendingAction,
+        installedApp: runtimeContext.installedApp,
+        logger: this.logger,
+        nativeAdapter: this.environment.nativeAdapter,
+        platform,
+      });
+    } catch (error) {
+      this.logger.error('Unexpected error while performing an update action.', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        platform,
+        sourceType: pendingAction.sourceType,
+      });
+
+      return {
+        kind: 'failed',
+        platform,
+        reason:
+          pendingAction.sourceType === 'playStore'
+            ? 'playUpdateFailed'
+            : 'openUrlFailed',
+        sourceType: pendingAction.sourceType,
+      };
+    }
+  }
+
+  private clearPendingUpdateAction(): void {
+    this.pendingUpdateAction = null;
+  }
+
+  private updatePendingActionFromCheckResult(
+    result: InternalCheckResult
+  ): boolean {
+    if (result.kind !== 'updateAvailable') {
+      this.clearPendingUpdateAction();
+      return false;
+    }
+
+    if (result.mode !== 'offerUpdateAllowed') {
+      this.clearPendingUpdateAction();
+      return false;
+    }
+
+    this.pendingUpdateAction = {
+      platform: result.platform,
+      sourceType: result.sourceType,
+      targetUrl: result.targetUrl,
+    };
+    return true;
+  }
+}
+
 function toPublicSourceType(
   sourceType:
     | NonNullable<ReturnType<typeof getConfiguredPlatformSource>>['type']
@@ -47,131 +225,51 @@ function toPublicSourceType(
   return sourceType === 'fakePlayStore' ? 'playStore' : sourceType;
 }
 
-export function createInternalUpdateClient(
-  config: UpdateClientConfig,
-  environment: ClientEnvironment
-): UpdateClient {
-  const normalizedConfig = normalizeClientConfig(config);
-  const logger = createInternalLogger(normalizedConfig.debugging);
+function toPublicCheckResult(
+  result:
+    | InternalCheckResult
+    | InternalInvalidConfigurationResult
+    | InternalProviderErrorResult
+    | InternalUnsupportedResult,
+  canPerformUpdate: boolean
+): CheckResult {
+  switch (result.kind) {
+    case 'updateAvailable':
+      return new CheckResult({
+        availableVersion: result.availableVersion,
+        canPerformUpdate,
+        currentVersion: result.installedVersion,
+        status: 'hasUpdates',
+      });
 
-  return Object.freeze({
-    async checkForUpdate(options: CheckForUpdateOptions): Promise<CheckResult> {
-      const platform = environment.getPlatform();
+    case 'upToDate':
+      return new CheckResult({
+        availableVersion: result.availableVersion,
+        currentVersion: result.installedVersion,
+        status: 'noUpdates',
+      });
 
-      if (!platform) {
-        return {
-          kind: 'unsupported',
-          platform: 'ios',
-          reason: 'runtimePlatformUnsupported',
-        };
-      }
+    case 'invalidConfiguration':
+      return new CheckResult({
+        errorMessage: result.message,
+        errorType: 'configuration',
+        status: 'error',
+      });
 
-      const runtimeContext = await resolveCheckContext(
-        normalizedConfig,
-        platform,
-        logger,
-        environment
-      );
-      if ('kind' in runtimeContext) {
-        return runtimeContext;
-      }
+    case 'providerError':
+      return new CheckResult({
+        errorMessage: result.message,
+        errorType: 'provider',
+        status: 'error',
+      });
 
-      try {
-        return await runtimeContext.source.check({
-          installedApp: runtimeContext.installedApp,
-          logger,
-          mode: options.mode,
-          nativeAdapter: environment.nativeAdapter,
-          platform,
-        });
-      } catch (error) {
-        logger.error('Unexpected error while checking for updates.', {
-          errorMessage: error instanceof Error ? error.message : String(error),
-          platform,
-          sourceType: runtimeContext.sourceType,
-        });
-
-        return createUnexpectedCheckFailure(
-          platform,
-          runtimeContext.sourceType
-        );
-      }
-    },
-
-    async performUpdate(
-      result: UpdateAvailableResult & { readonly mode: 'offerUpdateAllowed' }
-    ): Promise<PerformUpdateResult> {
-      const platform = environment.getPlatform();
-
-      if (!platform) {
-        return {
-          kind: 'failed',
-          platform: result.platform,
-          reason: 'nativeCapabilityUnavailable',
-          sourceType: result.sourceType,
-        };
-      }
-
-      if (
-        result.platform !== platform ||
-        result.mode !== 'offerUpdateAllowed'
-      ) {
-        return {
-          kind: 'failed',
-          message:
-            'performUpdate expects an actionable result from the current platform.',
-          platform,
-          reason: 'invalidUpdateRequest',
-          sourceType: result.sourceType,
-        };
-      }
-
-      const runtimeContext = await resolveCheckContext(
-        normalizedConfig,
-        platform,
-        logger,
-        environment
-      );
-      if ('kind' in runtimeContext) {
-        return {
-          kind: 'failed',
-          message: runtimeContext.message,
-          platform,
-          reason:
-            runtimeContext.kind === 'unsupported'
-              ? 'nativeCapabilityUnavailable'
-              : 'invalidUpdateRequest',
-          sourceType: result.sourceType,
-        };
-      }
-
-      try {
-        return await runtimeContext.source.performUpdate({
-          installedApp: runtimeContext.installedApp,
-          logger,
-          nativeAdapter: environment.nativeAdapter,
-          platform,
-          result,
-        });
-      } catch (error) {
-        logger.error('Unexpected error while performing an update action.', {
-          errorMessage: error instanceof Error ? error.message : String(error),
-          platform,
-          sourceType: result.sourceType,
-        });
-
-        return {
-          kind: 'failed',
-          platform,
-          reason:
-            result.sourceType === 'playStore'
-              ? 'playUpdateFailed'
-              : 'openUrlFailed',
-          sourceType: result.sourceType,
-        };
-      }
-    },
-  });
+    case 'unsupported':
+      return new CheckResult({
+        errorMessage: result.message,
+        errorType: 'unsupported',
+        status: 'error',
+      });
+  }
 }
 
 async function resolveCheckContext(
@@ -180,7 +278,9 @@ async function resolveCheckContext(
   logger: InternalLogger,
   environment: ClientEnvironment
 ): Promise<
-  InvalidConfigurationResult | ResolvedCheckContext | UnsupportedResult
+  | InternalInvalidConfigurationResult
+  | InternalUnsupportedResult
+  | ResolvedCheckContext
 > {
   const platformConfig = getConfiguredPlatformSource(config, platform);
   if (!platformConfig) {
@@ -203,7 +303,6 @@ async function resolveCheckContext(
     platformConfig,
     environment.nativeAdapter
   );
-
   if ('kind' in installedApp) {
     return installedApp;
   }
@@ -222,7 +321,7 @@ function createSource(
     | ReturnType<typeof getConfiguredPlatformSource>
     | NonNullable<ReturnType<typeof getConfiguredPlatformSource>>,
   logger: InternalLogger
-): InvalidConfigurationResult | UpdateSource {
+): InternalInvalidConfigurationResult | UpdateSource {
   if (!sourceConfig) {
     return {
       kind: 'invalidConfiguration',
@@ -283,7 +382,9 @@ async function resolveInstalledAppInfo(
   sourceConfig: NonNullable<ReturnType<typeof getConfiguredPlatformSource>>,
   nativeAdapter: NativeAdapter
 ): Promise<
-  InvalidConfigurationResult | ResolvedInstalledAppInfo | UnsupportedResult
+  | InternalInvalidConfigurationResult
+  | InternalUnsupportedResult
+  | ResolvedInstalledAppInfo
 > {
   const installedInfoResult = await nativeAdapter.getInstalledAppInfo();
   if (!installedInfoResult.ok) {
@@ -291,7 +392,6 @@ async function resolveInstalledAppInfo(
   }
 
   const nativeInstalledInfo = installedInfoResult.value;
-
   if (!nativeInstalledInfo.identifier) {
     return {
       kind: 'invalidConfiguration',
@@ -334,15 +434,12 @@ async function resolveInstalledAppInfo(
       sourceType: toPublicSourceType(sourceConfig.type),
     };
   }
-  const resolvedIdentifier =
-    identifierOverride ?? nativeInstalledInfo.identifier;
-  const resolvedVersion = versionOverride ?? nativeInstalledInfo.version;
 
   return {
     buildNumber: nativeInstalledInfo.buildNumber ?? undefined,
-    identifier: resolvedIdentifier,
+    identifier: identifierOverride ?? nativeInstalledInfo.identifier,
     identifierSource: identifierOverride ? 'override' : 'native',
-    version: resolvedVersion,
+    version: versionOverride ?? nativeInstalledInfo.version,
     versionSource: versionOverride ? 'override' : 'native',
   };
 }
@@ -350,7 +447,7 @@ async function resolveInstalledAppInfo(
 function createUnexpectedCheckFailure(
   platform: PlatformName,
   sourceType: SourceType
-): ProviderErrorResult | UnsupportedResult {
+): InternalProviderErrorResult | InternalUnsupportedResult {
   if (sourceType === 'playStore') {
     return {
       kind: 'unsupported',
@@ -373,11 +470,39 @@ function createUnexpectedCheckFailure(
 function mapInstalledInfoFailure(
   platform: PlatformName,
   failure: NativeFailure
-): UnsupportedResult {
+): InternalUnsupportedResult {
   return {
     kind: 'unsupported',
     message: failure.message,
     platform,
     reason: 'nativeCapabilityUnavailable',
   };
+}
+
+function resolveFallbackPlatform(
+  config: ReturnType<typeof normalizeClientConfig>
+): PlatformName {
+  return config.platforms.ios ? 'ios' : 'android';
+}
+
+function resolveFallbackSourceType(
+  config: ReturnType<typeof normalizeClientConfig>,
+  platform: PlatformName | null
+): SourceType {
+  if (platform) {
+    const sourceConfig = getConfiguredPlatformSource(config, platform);
+    if (sourceConfig) {
+      return toPublicSourceType(sourceConfig.type);
+    }
+  }
+
+  if (config.platforms.ios?.source) {
+    return toPublicSourceType(config.platforms.ios.source.type);
+  }
+
+  if (config.platforms.android?.source) {
+    return toPublicSourceType(config.platforms.android.source.type);
+  }
+
+  return 'custom';
 }
