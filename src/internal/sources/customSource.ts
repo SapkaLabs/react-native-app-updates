@@ -98,13 +98,11 @@ export function createCustomSource(
     async performUpdate(
       context: SourcePerformContext
     ): Promise<PerformUpdateResult> {
-      if (
-        !context.result.targetUrl ||
-        !isValidTargetUrl(context.result.targetUrl)
-      ) {
+      const action = context.action;
+      if (!action.targetUrl || !isValidTargetUrl(action.targetUrl)) {
         return {
           kind: 'failed',
-          message: 'No valid target URL is available on this result.',
+          message: 'No valid target URL is available on this client state.',
           platform: context.platform,
           reason: 'invalidUpdateRequest',
           sourceType: 'custom',
@@ -112,7 +110,7 @@ export function createCustomSource(
       }
 
       const openUrlResult = await context.nativeAdapter.openUrl(
-        context.result.targetUrl
+        action.targetUrl
       );
       if (!openUrlResult.ok) {
         return {
@@ -140,7 +138,7 @@ export function createCustomSource(
         kind: 'redirected',
         platform: context.platform,
         sourceType: 'custom',
-        targetUrl: context.result.targetUrl,
+        targetUrl: action.targetUrl,
       };
     },
 

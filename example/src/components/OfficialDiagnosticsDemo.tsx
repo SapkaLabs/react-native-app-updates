@@ -12,7 +12,6 @@ import {
   type CheckMode,
   type CheckResult,
   type PlayStoreFlow,
-  type UpdateAvailableResult,
 } from '@sapkalabs/react-native-app-updates';
 import {
   readPlayUpdateInfo,
@@ -40,10 +39,6 @@ interface NativeSnapshot {
   readonly systemInfo: NativeInstalledAppInfo | null;
 }
 
-type ActionableResult = UpdateAvailableResult & {
-  readonly mode: 'offerUpdateAllowed';
-};
-
 type AndroidBackend = 'fake' | 'real';
 type AllowedUpdateTypePreset = 'both' | 'flexible' | 'immediate';
 
@@ -61,8 +56,6 @@ export function OfficialDiagnosticsDemo({
   );
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [performResult, setPerformResult] = useState<unknown>(null);
-  const [actionableResult, setActionableResult] =
-    useState<ActionableResult | null>(null);
   const [fakeStateResult, setFakeStateResult] =
     useState<AndroidFakePlayStoreDebugResult<AndroidFakePlayStoreState> | null>(
       null
@@ -179,15 +172,14 @@ export function OfficialDiagnosticsDemo({
     setPerformResult(null);
     const result = await client.checkForUpdate({ mode });
     setCheckResult(result);
-    setActionableResult(toActionableResult(result, mode));
   }
 
   async function runPerformUpdate(): Promise<void> {
-    if (!actionableResult) {
+    if (!checkResult?.canPerformUpdate()) {
       return;
     }
 
-    const result = await client.performUpdate(actionableResult);
+    const result = await client.performUpdate();
     setPerformResult(result);
   }
 
@@ -234,7 +226,7 @@ export function OfficialDiagnosticsDemo({
             onPress={() => runCheck('offerUpdateAllowed')}
           />
           <ActionButton
-            disabled={!actionableResult}
+            disabled={!checkResult?.canPerformUpdate()}
             label={isAndroid ? 'Start Native Update' : 'Open Store Target'}
             onPress={runPerformUpdate}
             variant="secondary"
@@ -553,20 +545,6 @@ function parseOptionalPositiveInt(value: string): number | undefined {
 function parsePositiveInt(value: string, fallback: number): number {
   const parsed = parseOptionalInt(value);
   return parsed === null || parsed <= 0 ? fallback : parsed;
-}
-
-function toActionableResult(
-  result: CheckResult,
-  mode: CheckMode
-): ActionableResult | null {
-  if (result.kind !== 'updateAvailable' || mode !== 'offerUpdateAllowed') {
-    return null;
-  }
-
-  return {
-    ...result,
-    mode: 'offerUpdateAllowed',
-  };
 }
 
 interface LabeledInputProps {

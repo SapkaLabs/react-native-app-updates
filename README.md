@@ -45,8 +45,8 @@ const result = await updates.checkForUpdate({
   mode: 'offerUpdateAllowed',
 });
 
-if (result.kind === 'updateAvailable' && result.mode === 'offerUpdateAllowed') {
-  await updates.performUpdate(result);
+if (result.canPerformUpdate()) {
+  await updates.performUpdate();
 }
 
 const fakeUpdates = createUpdateClient({
@@ -91,21 +91,17 @@ const updates = createUpdateClient({
 
 ## Result Model
 
-`checkForUpdate()` returns one of:
-
-- `upToDate`
-- `updateAvailable`
-- `unsupported`
-- `providerError`
-- `invalidConfiguration`
-
-For App Store lookups, `providerError` can include a typed `error` object:
+`checkForUpdate()` returns a `CheckResult` instance with:
 
 ```ts
-if (result.kind === 'providerError' && result.sourceType === 'appStore') {
-  result.error?.type; // 'network' | 'system' | 'unknown'
-  result.error?.message;
-}
+result.status; // 'hasUpdates' | 'noUpdates' | 'error'
+result.currentVersion;
+result.availableVersion;
+result.errorType; // 'configuration' | 'provider' | 'unsupported'
+result.errorMessage;
+result.hasUpdates();
+result.isError();
+result.canPerformUpdate();
 ```
 
 `performUpdate()` returns one of:
@@ -119,6 +115,7 @@ if (result.kind === 'providerError' && result.sourceType === 'appStore') {
 
 - iOS store lookup uses axios internally with optional App Store-scoped retry configuration. By default it attempts the request up to 3 times with a base delay of 3000 ms for stepped network retries.
 - iOS store lookup uses the installed bundle identifier by default, plus an optional App Store country. `debugging.identifierOverride` and `debugging.versionOverride` can override the installed values for iOS and custom sources.
+- `performUpdate()` uses the client instance's last actionable `offerUpdateAllowed` check result. A `versionCheckOnly` result never stores a pending update action.
 - Android Play integration uses the native Play Core API and supports `auto`, `immediate`, and `flexible` flow selection.
 - `sources.fakePlayStore(...)` uses Android's `FakeAppUpdateManager` so you can debug Play update flows locally. Use `androidDebug.fakePlayStore` to reset, configure, and advance the fake state machine.
 - The official Android Play source ignores `debugging.identifierOverride` and `debugging.versionOverride` and always uses the installed app metadata.

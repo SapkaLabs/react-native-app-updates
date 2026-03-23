@@ -3,13 +3,9 @@ import {
   createInternalUpdateClient,
   type ClientEnvironment,
 } from '../src/internal/client';
-import type {
-  CheckResult,
-  PerformUpdateResult,
-  UpdateAvailableResult,
-} from '../src/types';
 import type { NativeAdapter, NativeResult } from '../src/internal/nativeBridge';
 import { sources } from '../src/sources';
+import { CheckResult, type PerformUpdateResult } from '../src/types';
 
 jest.mock('axios', () => ({
   __esModule: true,
@@ -178,51 +174,53 @@ function createEnvironment(
   };
 }
 
-function expectUpdateAvailable(
-  result: CheckResult
-): UpdateAvailableResult & { readonly kind: 'updateAvailable' } {
-  expect(result.kind).toBe('updateAvailable');
-  if (result.kind !== 'updateAvailable') {
-    throw new Error(
-      `Expected updateAvailable result, received ${result.kind}.`
-    );
-  }
+function expectCheckResult(result: CheckResult): CheckResult {
+  expect(result).toBeInstanceOf(CheckResult);
   return result;
 }
 
-function expectOfferUpdateAvailable(
-  result: CheckResult
-): UpdateAvailableResult & {
-  readonly kind: 'updateAvailable';
-  readonly mode: 'offerUpdateAllowed';
-} {
-  const updateResult = expectUpdateAvailable(result);
-  expect(updateResult.mode).toBe('offerUpdateAllowed');
-  if (updateResult.mode !== 'offerUpdateAllowed') {
-    throw new Error(
-      `Expected offerUpdateAllowed mode, received ${updateResult.mode}.`
-    );
-  }
-  return {
-    ...updateResult,
-    mode: 'offerUpdateAllowed',
-  };
+function expectHasUpdates(
+  result: CheckResult,
+  canPerformUpdate: boolean
+): CheckResult {
+  const checkResult = expectCheckResult(result);
+  expect(checkResult.status).toBe('hasUpdates');
+  expect(checkResult.hasUpdates()).toBe(true);
+  expect(checkResult.isError()).toBe(false);
+  expect(checkResult.canPerformUpdate()).toBe(canPerformUpdate);
+  return checkResult;
 }
 
-function expectUnsupported(result: CheckResult) {
-  expect(result.kind).toBe('unsupported');
-  if (result.kind !== 'unsupported') {
-    throw new Error(`Expected unsupported result, received ${result.kind}.`);
-  }
-  return result;
+function expectNoUpdates(result: CheckResult): CheckResult {
+  const checkResult = expectCheckResult(result);
+  expect(checkResult.status).toBe('noUpdates');
+  expect(checkResult.hasUpdates()).toBe(false);
+  expect(checkResult.isError()).toBe(false);
+  expect(checkResult.canPerformUpdate()).toBe(false);
+  return checkResult;
 }
 
-function expectProviderError(result: CheckResult) {
-  expect(result.kind).toBe('providerError');
-  if (result.kind !== 'providerError') {
-    throw new Error(`Expected providerError result, received ${result.kind}.`);
-  }
-  return result;
+function expectError(
+  result: CheckResult,
+  errorType: 'configuration' | 'provider' | 'unsupported'
+): CheckResult {
+  const checkResult = expectCheckResult(result);
+  expect(checkResult.status).toBe('error');
+  expect(checkResult.errorType).toBe(errorType);
+  expect(checkResult.hasUpdates()).toBe(false);
+  expect(checkResult.isError()).toBe(true);
+  expect(checkResult.canPerformUpdate()).toBe(false);
+  return checkResult;
+}
+
+function expectPublicCheckResultKeys(
+  result: CheckResult,
+  expectedKeys: readonly string[]
+): void {
+  expect(Object.keys(result).sort()).toEqual([...expectedKeys].sort());
+  expect(Object.prototype.hasOwnProperty.call(result, 'actionable')).toBe(
+    false
+  );
 }
 
 function expectRedirected(result: PerformUpdateResult) {
@@ -237,6 +235,14 @@ function expectStarted(result: PerformUpdateResult) {
   expect(result.kind).toBe('started');
   if (result.kind !== 'started') {
     throw new Error(`Expected started result, received ${result.kind}.`);
+  }
+  return result;
+}
+
+function expectFailed(result: PerformUpdateResult) {
+  expect(result.kind).toBe('failed');
+  if (result.kind !== 'failed') {
+    throw new Error(`Expected failed result, received ${result.kind}.`);
   }
   return result;
 }
@@ -273,10 +279,12 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('ios', createNativeAdapter())
     );
 
-    const result = expectUpdateAvailable(
-      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    const result = expectHasUpdates(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' }),
+      false
     );
 
+    expect(result.currentVersion).toBe('1.0.0');
     expect(result.availableVersion).toBe('2.0.0');
     expect(mockedAxiosGet).toHaveBeenCalledWith(
       'https://itunes.apple.com/us/lookup?bundleId=com.example.app'
@@ -307,8 +315,9 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('ios', createNativeAdapter())
     );
 
-    expectUpdateAvailable(
-      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' }),
+      false
     );
     expect(mockedAxiosGet).toHaveBeenCalledWith(
       'https://itunes.apple.com/lookup?bundleId=com.example.app'
@@ -351,8 +360,9 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('ios', createNativeAdapter())
     );
 
-    const firstResult = expectUpdateAvailable(
-      await clientOne.checkForUpdate({ mode: 'versionCheckOnly' })
+    const firstResult = expectHasUpdates(
+      await clientOne.checkForUpdate({ mode: 'versionCheckOnly' }),
+      false
     );
     expect(firstResult.availableVersion).toBe('2.0.0');
 
@@ -367,14 +377,15 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('ios', createNativeAdapter())
     );
 
-    const secondResult = expectUpdateAvailable(
-      await clientTwo.checkForUpdate({ mode: 'versionCheckOnly' })
+    const secondResult = expectHasUpdates(
+      await clientTwo.checkForUpdate({ mode: 'versionCheckOnly' }),
+      false
     );
     expect(secondResult.availableVersion).toBe('3.0.0');
     expect(mockedAxiosGet).toHaveBeenCalledTimes(2);
   });
 
-  test('custom providers can return update metadata and redirect targets', async () => {
+  test('offerUpdateAllowed stores a pending action and performUpdate uses it', async () => {
     const client = createInternalUpdateClient(
       {
         platforms: {
@@ -382,7 +393,6 @@ describe('createInternalUpdateClient', () => {
             source: sources.custom({
               async getLatestVersion() {
                 return {
-                  latestBuildNumber: '7',
                   latestVersion: '1.1.0',
                   metadata: { channel: 'beta' },
                   targetUrl: 'https://example.com/download',
@@ -395,18 +405,352 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('ios', createNativeAdapter())
     );
 
-    const checkResult = expectOfferUpdateAvailable(
-      await client.checkForUpdate({
-        mode: 'offerUpdateAllowed',
-      })
+    const result = expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
     );
-    expect(checkResult.metadata).toEqual({ channel: 'beta' });
-    expect(checkResult.targetUrl).toBe('https://example.com/download');
+    expect(result.availableVersion).toBe('1.1.0');
 
-    const performResult = expectRedirected(
-      await client.performUpdate(checkResult)
-    );
+    const performResult = expectRedirected(await client.performUpdate());
     expect(performResult.targetUrl).toBe('https://example.com/download');
+  });
+
+  test('versionCheckOnly does not store a pending action', async () => {
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion: '2.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' }),
+      false
+    );
+
+    const performResult = expectFailed(await client.performUpdate());
+    expect(performResult.reason).toBe('invalidUpdateRequest');
+    expect(performResult.message).toBe(
+      'No pending update is stored on this client instance.'
+    );
+  });
+
+  test('noUpdates clears a previously stored pending action', async () => {
+    let latestVersion = '2.0.0';
+    let targetUrl = 'https://example.com/first';
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion,
+                  targetUrl,
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
+    );
+
+    latestVersion = '1.0.0';
+    targetUrl = 'https://example.com/current';
+
+    const noUpdateResult = expectNoUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' })
+    );
+    expect(noUpdateResult.currentVersion).toBe('1.0.0');
+    expect(noUpdateResult.availableVersion).toBe('1.0.0');
+
+    const performResult = expectFailed(await client.performUpdate());
+    expect(performResult.reason).toBe('invalidUpdateRequest');
+  });
+
+  test('errors clear a previously stored pending action', async () => {
+    let responseMode: 'valid' | 'invalid' = 'valid';
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                if (responseMode === 'invalid') {
+                  return {
+                    latestVersion: '2.0.0',
+                    targetUrl: 'not-a-url',
+                  };
+                }
+
+                return {
+                  latestVersion: '2.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
+    );
+
+    responseMode = 'invalid';
+
+    const errorResult = expectError(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      'provider'
+    );
+    expect(errorResult.errorMessage).toBe(
+      'Custom providers must return an absolute targetUrl.'
+    );
+
+    const performResult = expectFailed(await client.performUpdate());
+    expect(performResult.reason).toBe('invalidUpdateRequest');
+  });
+
+  test('a later actionable check replaces the stored pending action', async () => {
+    const openUrlCalls: string[] = [];
+    const targetUrls = [
+      'https://example.com/first',
+      'https://example.com/second',
+    ];
+    let callIndex = 0;
+
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                const targetUrl =
+                  targetUrls[Math.min(callIndex, targetUrls.length - 1)]!;
+                callIndex += 1;
+                return {
+                  latestVersion: `2.${callIndex}.0`,
+                  targetUrl,
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment(
+        'ios',
+        createNativeAdapter({
+          openUrl: (url: string) => {
+            openUrlCalls.push(url);
+            return success({
+              errorCode: null,
+              message: null,
+              opened: true,
+            });
+          },
+        })
+      )
+    );
+
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
+    );
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
+    );
+
+    const performResult = expectRedirected(await client.performUpdate());
+    expect(performResult.targetUrl).toBe('https://example.com/second');
+    expect(openUrlCalls).toEqual(['https://example.com/second']);
+  });
+
+  test('client instances do not share pending update state', async () => {
+    const clientOne = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion: '2.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    const clientTwo = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion: '2.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    expectHasUpdates(
+      await clientOne.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
+    );
+
+    const performResult = expectFailed(await clientTwo.performUpdate());
+    expect(performResult.reason).toBe('invalidUpdateRequest');
+  });
+
+  test('CheckResult only exposes the intended public fields at runtime', async () => {
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion: '2.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    const hasUpdatesResult = expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
+    );
+    expectPublicCheckResultKeys(hasUpdatesResult, [
+      'availableVersion',
+      'currentVersion',
+      'status',
+    ]);
+
+    const noUpdatesClient = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion: '1.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    const noUpdatesResult = expectNoUpdates(
+      await noUpdatesClient.checkForUpdate({ mode: 'versionCheckOnly' })
+    );
+    expectPublicCheckResultKeys(noUpdatesResult, [
+      'availableVersion',
+      'currentVersion',
+      'status',
+    ]);
+
+    const errorClient = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion: '2.0.0',
+                  targetUrl: 'not-a-url',
+                };
+              },
+            }),
+          },
+        },
+      },
+      createEnvironment('ios', createNativeAdapter())
+    );
+
+    const errorResult = expectError(
+      await errorClient.checkForUpdate({ mode: 'versionCheckOnly' }),
+      'provider'
+    );
+    expectPublicCheckResultKeys(errorResult, [
+      'errorMessage',
+      'errorType',
+      'status',
+    ]);
+  });
+
+  test('reports unsupported when the runtime platform is unavailable', async () => {
+    const client = createInternalUpdateClient(
+      {
+        platforms: {
+          ios: {
+            source: sources.custom({
+              async getLatestVersion() {
+                return {
+                  latestVersion: '2.0.0',
+                  targetUrl: 'https://example.com/download',
+                };
+              },
+            }),
+          },
+        },
+      },
+      {
+        getPlatform: () => null,
+        nativeAdapter: createNativeAdapter(),
+      }
+    );
+
+    const result = expectError(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      'unsupported'
+    );
+    expect(result.errorMessage).toBe(
+      'The current runtime platform is not supported.'
+    );
+    expectPublicCheckResultKeys(result, [
+      'errorMessage',
+      'errorType',
+      'status',
+    ]);
   });
 
   test('android custom providers still receive debugging overrides', async () => {
@@ -441,8 +785,9 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('android', createNativeAdapter())
     );
 
-    const result = expectUpdateAvailable(
-      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    const result = expectHasUpdates(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' }),
+      false
     );
 
     expect(receivedApp).toEqual({
@@ -450,10 +795,10 @@ describe('createInternalUpdateClient', () => {
       identifier: 'com.debug.override',
       version: '9.9.9',
     });
-    expect(result.installedVersion).toBe('9.9.9');
+    expect(result.currentVersion).toBe('9.9.9');
   });
 
-  test('invalid custom provider payloads are surfaced as providerError', async () => {
+  test('invalid custom provider payloads are surfaced as provider errors', async () => {
     const client = createInternalUpdateClient(
       {
         platforms: {
@@ -472,13 +817,16 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('ios', createNativeAdapter())
     );
 
-    const result = expectProviderError(
-      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    const result = expectError(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' }),
+      'provider'
     );
-    expect(result.reason).toBe('invalidRemoteResponse');
+    expect(result.errorMessage).toBe(
+      'Custom providers must return an absolute targetUrl.'
+    );
   });
 
-  test('appStore provider errors expose typed network error details', async () => {
+  test('appStore lookup failures are surfaced as provider errors', async () => {
     mockedAxiosGet.mockRejectedValueOnce(
       createAxiosError({
         code: 'ENOTFOUND',
@@ -502,18 +850,11 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('ios', createNativeAdapter())
     );
 
-    const result = expectProviderError(
-      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    const result = expectError(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' }),
+      'provider'
     );
-
-    expect(result.reason).toBe('lookupFailed');
-    expect(result.message).toBe('Network Error');
-    expect(result.error).toEqual({
-      code: 'ENOTFOUND',
-      message: 'Network Error',
-      retryable: true,
-      type: 'network',
-    });
+    expect(result.errorMessage).toBe('Network Error');
   });
 
   test('official Play source ignores debugging overrides', async () => {
@@ -532,10 +873,11 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('android', createNativeAdapter())
     );
 
-    const result = expectUpdateAvailable(
-      await client.checkForUpdate({ mode: 'versionCheckOnly' })
+    const result = expectHasUpdates(
+      await client.checkForUpdate({ mode: 'versionCheckOnly' }),
+      false
     );
-    expect(result.installedVersion).toBe('1.0.0');
+    expect(result.currentVersion).toBe('1.0.0');
   });
 
   test('fake Play source passes the fake backend to native checks and performs', async () => {
@@ -575,16 +917,12 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('android', nativeAdapter)
     );
 
-    const checkResult = expectOfferUpdateAvailable(
-      await client.checkForUpdate({
-        mode: 'offerUpdateAllowed',
-      })
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
     );
 
-    const performResult = expectStarted(
-      await client.performUpdate(checkResult)
-    );
-
+    const performResult = expectStarted(await client.performUpdate());
     expect(performResult.kind).toBe('started');
     expect(observedBackends).toEqual([
       'check:fake',
@@ -593,7 +931,7 @@ describe('createInternalUpdateClient', () => {
     ]);
   });
 
-  test('Play source maps app-not-owned to unsupported', async () => {
+  test('Play source maps app-not-owned to unsupported errors', async () => {
     const client = createInternalUpdateClient(
       {
         platforms: {
@@ -620,13 +958,16 @@ describe('createInternalUpdateClient', () => {
       )
     );
 
-    const result = expectUnsupported(
-      await client.checkForUpdate({ mode: 'offerUpdateAllowed' })
+    const result = expectError(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      'unsupported'
     );
-    expect(result.reason).toBe('androidAppNotOwned');
+    expect(result.errorMessage).toBe(
+      'App is not owned by any user on this device.'
+    );
   });
 
-  test('Play source maps install-not-allowed to unsupported', async () => {
+  test('Play source maps install-not-allowed to unsupported errors', async () => {
     const client = createInternalUpdateClient(
       {
         platforms: {
@@ -654,10 +995,11 @@ describe('createInternalUpdateClient', () => {
       )
     );
 
-    const result = expectUnsupported(
-      await client.checkForUpdate({ mode: 'offerUpdateAllowed' })
+    const result = expectError(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      'unsupported'
     );
-    expect(result.reason).toBe('androidInstallNotAllowed');
+    expect(result.errorMessage).toContain('download/install is not allowed');
   });
 
   test('Play source supports developer-triggered immediate resume', async () => {
@@ -695,19 +1037,16 @@ describe('createInternalUpdateClient', () => {
       createEnvironment('android', nativeAdapter)
     );
 
-    const checkResult = expectOfferUpdateAvailable(
-      await client.checkForUpdate({
-        mode: 'offerUpdateAllowed',
-      })
+    expectHasUpdates(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      true
     );
 
-    const performResult = expectStarted(
-      await client.performUpdate(checkResult)
-    );
+    const performResult = expectStarted(await client.performUpdate());
     expect(performResult.kind).toBe('started');
   });
 
-  test('Play source reports flow-specific unsupported results', async () => {
+  test('Play source reports flow-specific unsupported errors', async () => {
     const client = createInternalUpdateClient(
       {
         platforms: {
@@ -734,10 +1073,11 @@ describe('createInternalUpdateClient', () => {
       )
     );
 
-    const result = expectUnsupported(
-      await client.checkForUpdate({ mode: 'offerUpdateAllowed' })
+    const result = expectError(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      'unsupported'
     );
-    expect(result.reason).toBe('playFlowNotAllowed');
+    expect(result.errorMessage).toContain('not currently allowed');
   });
 
   test('missing native capability does not crash the JS layer', async () => {
@@ -776,9 +1116,10 @@ describe('createInternalUpdateClient', () => {
       })
     );
 
-    const result = expectUnsupported(
-      await client.checkForUpdate({ mode: 'offerUpdateAllowed' })
+    const result = expectError(
+      await client.checkForUpdate({ mode: 'offerUpdateAllowed' }),
+      'unsupported'
     );
-    expect(result.reason).toBe('nativeCapabilityUnavailable');
+    expect(result.errorMessage).toBe('missing native module');
   });
 });

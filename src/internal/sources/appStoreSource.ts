@@ -84,10 +84,11 @@ export function createAppStoreSource(
     async performUpdate(
       context: SourcePerformContext
     ): Promise<PerformUpdateResult> {
-      if (!context.result.targetUrl) {
+      const action = context.action;
+      if (!action.targetUrl) {
         return {
           kind: 'failed',
-          message: 'No App Store target URL is available on this result.',
+          message: 'No App Store target URL is available on this client state.',
           platform: context.platform,
           reason: 'invalidUpdateRequest',
           sourceType: 'appStore',
@@ -95,7 +96,7 @@ export function createAppStoreSource(
       }
 
       const openUrlResult = await context.nativeAdapter.openUrl(
-        context.result.targetUrl
+        action.targetUrl
       );
       if (!openUrlResult.ok) {
         return {
@@ -122,7 +123,7 @@ export function createAppStoreSource(
         kind: 'redirected',
         platform: context.platform,
         sourceType: 'appStore',
-        targetUrl: context.result.targetUrl,
+        targetUrl: action.targetUrl,
       };
     },
 

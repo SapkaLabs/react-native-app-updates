@@ -60,3 +60,5 @@ describe('release-utils', () => {
     ).toBeNull();
   });
 });
+
+export {};

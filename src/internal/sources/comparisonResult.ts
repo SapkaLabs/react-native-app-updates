@@ -1,10 +1,10 @@
 import type {
   CheckMode,
-  CheckResult,
   PlatformName,
   SourceType,
   UpdateMetadata,
 } from '../../types';
+import type { InternalCheckResult } from '../checkOutcome';
 import type { ResolvedInstalledAppInfo } from '../sourceContracts';
 import { compareComparableVersions } from '../versioning';
 
@@ -21,7 +21,7 @@ interface ComparisonSourceResultInput {
 
 export function createComparisonSourceResult(
   input: ComparisonSourceResultInput
-): CheckResult {
+): InternalCheckResult {
   const comparison = compareComparableVersions(
     {
       buildNumber: input.installedApp.buildNumber,
