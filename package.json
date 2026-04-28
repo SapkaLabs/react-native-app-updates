@@ -1,7 +1,7 @@
 {
   "name": "@sapkalabs/react-native-app-updates",
   "version": "0.1.13",
-  "description": "A React Native TurboModule for checking versions and performing app updates",
+  "description": "TurboModule-first React Native in-app updates library for App Store, Play Store, and custom version providers",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -44,8 +44,20 @@
   },
   "keywords": [
     "react-native",
+    "react-native-library",
+    "react-native-new-architecture",
+    "turbo-module",
+    "in-app-updates",
+    "app-updates",
+    "version-check",
+    "force-update",
+    "soft-update",
+    "play-store",
+    "app-store",
+    "play-core",
+    "android",
     "ios",
-    "android"
+    "typescript"
   ],
   "repository": {
     "type": "git",

@@ -1,0 +1,45 @@
+name: ✨ Feature request
+description: Propose an improvement for this library.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # Feature request
+
+        Thanks for taking the time to suggest an improvement.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem are you trying to solve?
+      placeholder: Describe the workflow, team need, or limitation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like the library to do?
+      placeholder: Describe the API, behavior, or documentation change you want.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What are you doing today, or what other approaches did you evaluate?
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Relevant platforms
+      multiple: true
+      options:
+        - Android
+        - iOS
+        - Both
+  - type: input
+    id: react-native-version
+    attributes:
+      label: React Native version
+      placeholder: 0.83.0
